@@ -34,7 +34,6 @@ columns: List of column names to remove.
 Automatically renames columns to remove spaces and special characters.
 Parameters:
 df: DataFrame to rename columns in.
-And call the this function like this rename_columns.
 
 5. rename_dataframe_columns(df: pd.DataFrame, rename_dict: dict) -> pd.DataFrame
 Renames columns in a DataFrame using a provided dictionary mapping.
@@ -135,8 +134,7 @@ df_unique = remove_duplicates(df)
 df_reduced = remove_columns(df, columns=['ColumnToRemove'])
 
 # Example usage of auto_rename_columns
-# Run the renaming function
-rename_columns(df)
+auto_rename_columns(df)
 
 # Example usage of rename_dataframe_columns
 rename_dict = {'OldName': 'NewName'}

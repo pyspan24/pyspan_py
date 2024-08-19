@@ -229,7 +229,7 @@ def clean_column_name(column_name: str) -> str:
     recommended_name = ' '.join(corrected_words).title()
     return recommended_name
 
-def auto_rename_columns(df: pd.DataFrame) -> dict:
+def rename_columns(df: pd.DataFrame) -> dict:
     """
     Automatically recommend readable column names for a DataFrame.
 
@@ -259,7 +259,7 @@ def apply_column_renames(df: pd.DataFrame, rename_map: dict) -> None:
     if rename_map:
         df.rename(columns=rename_map, inplace=True)
 
-def rename_columns(df: pd.DataFrame) -> None:
+def auto_rename_columns(df: pd.DataFrame) -> None:
     """
     Provide an interactive prompt for users to apply recommended column renaming.
 
@@ -267,7 +267,7 @@ def rename_columns(df: pd.DataFrame) -> None:
     - df (pd.DataFrame): The DataFrame whose columns will be analyzed and potentially renamed.
     """
     # Get column rename recommendations
-    rename_recommendations = auto_rename_columns(df)
+    rename_recommendations = rename_columns(df)
 
     if not rename_recommendations:
         print("All column names are already clean and readable!")
