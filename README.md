@@ -177,5 +177,5 @@ display_logs()
 This package is licensed under the MIT License. See the LICENSE file for more details.
 
 # Contact
-For issues or questions, please contact [your_email@example.com].
+For issues or questions, please contact [amynahreimoo@gmail.com].
 
