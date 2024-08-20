@@ -2,13 +2,14 @@ from setuptools import setup
 
 setup(
     name="pyspan",
-    version="0.1.0",
+    version="0.1.2",
     py_modules=["pyspan"],
     description="A Python package for efficient data cleaning and preprocessing with Pandas.",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     author="Noor Surani, Amynah Reimoo",
     author_email="nsurani@hotmail.com, amynahreimoo@gmail.com",
+    license="MIT",
     url="https://github.com/pyspan24/pyspan_py.git",
     install_requires=[
        "numpy==2.0.1",
@@ -20,10 +21,11 @@ setup(
        "six==1.16.0",
        "tzdata==2024.1",
     ],
+    include_package_data=True,
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires='>=3.12',
+    python_requires='>=3.9',
 )
