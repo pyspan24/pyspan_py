@@ -39,18 +39,22 @@ def handle_nulls(
     columns: Optional[Union[str, List[str]]] = None,
     action: str = 'remove',
     with_val: Optional[Union[int, float, str]] = None,
+    by: Optional[str] = None,
     inplace: bool = False
 ) -> Optional[pd.DataFrame]:
     """
-    Handle rows with null values in a DataFrame by removing or replacing them.
+    Handle null values in a DataFrame by removing, replacing, or imputing them.
 
     Parameters:
     - df (pd.DataFrame): The input DataFrame.
     - columns (Optional[Union[str, List[str]]]): Column(s) to check for null values.
       If None, apply to the entire DataFrame. Default is None.
     - action (str): Action to perform on rows with null values.
-      Options are 'remove' to drop rows or 'replace' to fill nulls with a custom value. Default is 'remove'.
+      Options are 'remove' to drop rows, 'replace' to fill nulls with a custom value, 
+      or 'impute' to fill nulls using a strategy like 'mean', 'median', etc. Default is 'remove'.
     - with_val (Optional[Union[int, float, str]]): Custom value to replace nulls with, applicable if action is 'replace'.
+    - by (Optional[str]): Strategy to use for imputing nulls ('mean', 'median', 'mode', etc.).
+      Required if action is 'impute'.
     - inplace (bool): If True, modify the DataFrame in place. If False, return a new DataFrame. Default is False.
 
     Returns:
@@ -60,25 +64,37 @@ def handle_nulls(
     if not isinstance(df, pd.DataFrame):
         raise TypeError("The 'df' parameter must be a pandas DataFrame.")
 
-    # Validate the action parameter
-    if action not in ['remove', 'replace']:
-        raise ValueError("Action must be either 'remove' or 'replace'.")
-
-    # Determine columns to process
     if columns is not None:
         if isinstance(columns, str):
-            columns = [columns]  # Convert a single column name to a list
+            columns = [columns]
         subset_df = df[columns]
     else:
         subset_df = df
 
-    # Remove or replace rows with nulls
     if action == 'remove':
         df_cleaned = df.dropna(subset=subset_df.columns)
     elif action == 'replace':
         if with_val is None:
-            raise ValueError("with value must be provided when action is 'replace'.")
+            raise ValueError("A value must be provided when action is 'replace'.")
         df_cleaned = df.fillna({col: with_val for col in subset_df.columns})
+    elif action == 'impute':
+        if by is None:
+            raise ValueError("An impute strategy must be provided when action is 'impute'.")
+        strategies = {
+            'mean': lambda col: col.fillna(col.mean()),
+            'median': lambda col: col.fillna(col.median()),
+            'mode': lambda col: col.fillna(col.mode().iloc[0]),
+            'interpolate': lambda col: col.interpolate(),
+            'forward_fill': lambda col: col.ffill(),
+            'backward_fill': lambda col: col.bfill()
+        }
+        if by not in strategies:
+            raise ValueError("Invalid impute strategy. Use one of ['mean', 'median', 'mode', 'interpolate', 'forward_fill', 'backward_fill'].")
+        df_cleaned = df.copy()
+        for col in subset_df.columns:
+            df_cleaned[col] = strategies[by](df_cleaned[col])
+    else:
+        raise ValueError("Action must be either 'remove', 'replace', or 'impute'.")
 
     if inplace:
         df.update(df_cleaned)
@@ -88,112 +104,96 @@ def handle_nulls(
 
 
 
-
 import pandas as pd
 from typing import Optional, Union, List
-@log_function_call
 
-def remove_duplicates(
+@log_function_call
+def remove(
     df: pd.DataFrame,
+    operation: str,
     columns: Optional[Union[str, List[str]]] = None,
     keep: Optional[str] = 'first',
     consider_all: bool = True,
     inplace: bool = False
 ) -> Optional[pd.DataFrame]:
     """
-    Remove duplicate rows from a DataFrame based on specified columns or the entire row.
+    Remove duplicates or columns from a DataFrame based on the specified operation.
 
     Parameters:
-    - df (pd.DataFrame): The input DataFrame from which duplicates are to be removed.
-    - columns (Optional[Union[str, List[str]]]): Specific column(s) to check for duplicates.
-      If None, checks for duplicates in the entire DataFrame. Default is None.
+    - df (pd.DataFrame): The input DataFrame.
+    - operation (str): Type of removal operation. Options are:
+      - 'duplicates': Remove duplicate rows.
+      - 'columns': Remove specified columns.
+    - columns (Optional[Union[str, List[str]]]): Column(s) to consider for the operation.
+      - For 'duplicates': Columns to check for duplicates.
+      - For 'columns': Column(s) to be removed.
     - keep (Optional[str]): Determines which duplicates to keep. Options are:
-      'first': Keep the first occurrence of each duplicate.
-      'last': Keep the last occurrence of each duplicate.
-      'none': Remove all duplicates.
-      Default is None, which keeps the first occurrence.
+      - 'first': Keep the first occurrence of each duplicate.
+      - 'last': Keep the last occurrence of each duplicate.
+      - 'none': Remove all duplicates.
+      Default is 'first'.
     - consider_all (bool): Whether to consider all columns in the DataFrame if duplicates are found in the specified columns.
       True means removing the entire row if any duplicates are found in the specified columns. Default is True.
     - inplace (bool): If True, modify the DataFrame in place. If False, return a new DataFrame. Default is False.
 
     Returns:
-    - Optional[pd.DataFrame]: DataFrame with duplicates removed according to specified criteria, or None if inplace=True.
+    - Optional[pd.DataFrame]: DataFrame with duplicates or columns removed according to specified criteria, or None if inplace=True.
+
+    Raises:
+    - ValueError: If invalid columns are specified or operation is invalid.
+    - TypeError: If input types are incorrect.
     """
 
     if not isinstance(df, pd.DataFrame):
         raise TypeError("The 'df' parameter must be a pandas DataFrame.")
 
-    # Validate the keep parameter
-    if keep not in ['first', 'last', 'none', None]:
-        raise ValueError("keep must be one of ['first', 'last', 'none'] or None.")
+    if operation == 'duplicates':
+        # Validate the keep parameter
+        if keep not in ['first', 'last', 'none', None]:
+            raise ValueError("keep must be one of ['first', 'last', 'none'] or None.")
 
-    # Validate columns input
-    if columns is not None:
+        # Validate columns input
+        if columns is not None:
+            if isinstance(columns, str):
+                columns = [columns]  # Convert single column name to a list
+
+            # Check if all columns in columns exist in the DataFrame
+            missing_columns = [col for col in columns if col not in df.columns]
+            if missing_columns:
+                raise ValueError(f"Columns {missing_columns} not found in DataFrame.")
+
+        # Remove duplicates
+        if keep == 'none':
+            df_cleaned = df.drop_duplicates(subset=columns, keep=False)
+        else:
+            if consider_all:
+                df_cleaned = df.drop_duplicates(subset=columns, keep=keep or 'first')
+            else:
+                df_cleaned = df.drop_duplicates(keep=keep or 'first')
+
+    elif operation == 'columns':
+        # Validate input
         if isinstance(columns, str):
-            columns = [columns]  # Convert single column name to a list
+            columns = [columns]  # Convert a single column name to a list
+        elif not isinstance(columns, list) or not all(isinstance(col, str) for col in columns):
+            raise TypeError("columns must be a string or a list of column names.")
 
-        # Check if all columns in columns exist in the DataFrame
+        # Check if columns exist in the DataFrame
         missing_columns = [col for col in columns if col not in df.columns]
         if missing_columns:
             raise ValueError(f"Columns {missing_columns} not found in DataFrame.")
 
-    # Remove duplicates
-    if keep == 'none':
-        df_cleaned = df.drop_duplicates(subset=columns, keep=False)
+        # Remove specified columns
+        df_cleaned = df.drop(columns=columns)
+
     else:
-        if consider_all:
-            df_cleaned = df.drop_duplicates(subset=columns, keep=keep or 'first')
-        else:
-            df_cleaned = df.drop_duplicates(keep=keep or 'first')
+        raise ValueError("operation must be either 'duplicates' or 'columns'.")
 
     if inplace:
         df.update(df_cleaned)
         return None
     else:
         return df_cleaned
-
-
-
-
-
-
-import pandas as pd
-from typing import Union, List
-@log_function_call
-
-def remove_columns(df: pd.DataFrame, columns: Union[str, List[str]]) -> pd.DataFrame:
-    """
-    Remove specified columns from a DataFrame.
-
-    Parameters:
-    - df (pd.DataFrame): The input DataFrame from which columns are to be removed.
-    - columns (Union[str, List[str]]): A column name or a list of column names to be removed.
-
-    Returns:
-    - pd.DataFrame: A DataFrame with the specified columns removed.
-
-    Raises:
-    - ValueError: If any of the specified columns do not exist in the DataFrame.
-    - TypeError: If columns is not a string or a list of strings.
-    """
-
-    # Validate input
-    if isinstance(columns, str):
-        columns = [columns]  # Convert a single column name to a list
-    elif not isinstance(columns, list) or not all(isinstance(col, str) for col in columns):
-        raise TypeError("columns must be a string or a list of column names.")
-
-    # Check if columns exist in the DataFrame
-    missing_columns = [col for col in columns if col not in df.columns]
-    if missing_columns:
-        raise ValueError(f"Columns {missing_columns} not found in DataFrame.")
-
-    # Remove specified columns
-    df_reduced = df.drop(columns=columns)
-
-    return df_reduced
-
-
 
 
 
@@ -203,7 +203,6 @@ def remove_columns(df: pd.DataFrame, columns: Union[str, List[str]]) -> pd.DataF
 import pandas as pd
 import re
 from spellchecker import SpellChecker
-@log_function_call
 
 def clean_column_name(column_name: str) -> str:
     """
@@ -247,7 +246,6 @@ def rename_columns(df: pd.DataFrame) -> dict:
             recommendations[column] = recommended_name
 
     return recommendations
-
 def apply_column_renames(df: pd.DataFrame, rename_map: dict) -> None:
     """
     Apply the recommended column name changes to the DataFrame.
@@ -258,6 +256,7 @@ def apply_column_renames(df: pd.DataFrame, rename_map: dict) -> None:
     """
     if rename_map:
         df.rename(columns=rename_map, inplace=True)
+@log_function_call
 
 def auto_rename_columns(df: pd.DataFrame) -> None:
     """
@@ -326,27 +325,39 @@ def rename_dataframe_columns(df: pd.DataFrame, rename_dict: dict) -> pd.DataFram
 
 
 
-
-
 import pandas as pd
 import pytz
 from typing import Union, List, Optional
 @log_function_call
 
-def change_dt(
+def format_dt(
     df: pd.DataFrame,
-    columns: Union[str, List[str]],
+    column_name: str,
+    day: bool = False,
+    month: bool = False,
+    year: bool = False,
+    quarter: bool = False,
+    hour: bool = False,
+    minute: bool = False,
+    day_of_week: bool = False,
     date_format: str = "%Y-%m-%d",
     time_format: str = "%H:%M:%S",
     from_timezone: Optional[str] = None,
     to_timezone: Optional[str] = None
 ) -> pd.DataFrame:
     """
-    Change the format of date and time columns in a DataFrame and handle timezone conversion.
-
+    Add additional date/time-based columns and format date/time columns in a DataFrame.
+    
     Parameters:
-    - df (pd.DataFrame): The DataFrame containing date/time columns to reformat.
-    - columns (Union[str, List[str]]): The name(s) of the column(s) to be reformatted.
+    - df (pd.DataFrame): The DataFrame to which new date/time features will be added and formatted.
+    - column_name (str): The name of the column containing date/time data.
+    - day (bool): If True, add a column with the day of the month.
+    - month (bool): If True, add a column with the month.
+    - year (bool): If True, add a column with the year.
+    - quarter (bool): If True, add a column with the quarter of the year.
+    - hour (bool): If True, add a column with the hour of the day.
+    - minute (bool): If True, add a column with the minute of the hour.
+    - day_of_week (bool): If True, add a column with the day of the week (0=Monday, 6=Sunday).
     - date_format (str): The desired date format (default: "%Y-%m-%d").
     - time_format (str): The desired time format (default: "%H:%M:%S").
     - from_timezone (Optional[str]): The original timezone of the datetime column(s).
@@ -355,49 +366,59 @@ def change_dt(
       If None, no timezone conversion will be applied (default: None).
 
     Returns:
-    - pd.DataFrame: A new DataFrame with the date/time columns reformatted.
+    - pd.DataFrame: The DataFrame with added date/time features and formatted date/time columns.
+    
+    Raises:
+    - ValueError: If the specified column does not exist in the DataFrame or conversion fails.
     """
+    # Check if the DataFrame contains the specified column
+    if column_name not in df.columns:
+        raise ValueError(f"Column '{column_name}' does not exist in the DataFrame.")
+    
+    # Convert the column to datetime if it's not already
+    if not pd.api.types.is_datetime64_any_dtype(df[column_name]):
+        try:
+            df[column_name] = pd.to_datetime(df[column_name])
+        except Exception as e:
+            raise ValueError(f"Failed to convert column '{column_name}' to datetime. Error: {e}")
 
-    # Ensure columns is a list
-    if isinstance(columns, str):
-        columns = [columns]
+    # Adding requested datetime features
+    if day:
+        df[f'{column_name}_day'] = df[column_name].dt.day
+    if month:
+        df[f'{column_name}_month'] = df[column_name].dt.month
+    if year:
+        df[f'{column_name}_year'] = df[column_name].dt.year
+    if quarter:
+        df[f'{column_name}_quarter'] = df[column_name].dt.quarter
+    if hour:
+        df[f'{column_name}_hour'] = df[column_name].dt.hour
+    if minute:
+        df[f'{column_name}_minute'] = df[column_name].dt.minute
+    if day_of_week:
+        df[f'{column_name}_day_of_week'] = df[column_name].dt.dayofweek
 
-    # Check if the provided columns exist in the DataFrame
-    missing_columns = [col for col in columns if col not in df.columns]
-    if missing_columns:
-        raise KeyError(f"These columns do not exist in the DataFrame: {missing_columns}")
+    # Apply date and time format and timezone conversion
+    if from_timezone and to_timezone:
+        # Convert timezone if both from and to timezones are specified
+        df[column_name] = (
+            df[column_name]
+            .dt.tz_localize(from_timezone, ambiguous='NaT', nonexistent='NaT')
+            .dt.tz_convert(to_timezone)
+        )
+    elif from_timezone or to_timezone:
+        raise ValueError("Both from_timezone and to_timezone must be specified for timezone conversion.")
 
-    # Clone the DataFrame to avoid modifying the original one
-    formatted_df = df.copy()
+    # Apply date and time format
+    df[column_name] = df[column_name].dt.strftime(f"{date_format} {time_format}")
 
-    # Change the date and time format and timezone for each specified column
-    for col in columns:
-        # Convert to datetime if not already in datetime format
-        formatted_df[col] = pd.to_datetime(formatted_df[col], errors='coerce')
-
-        if from_timezone and to_timezone:
-            # Convert timezone if both from and to timezones are specified
-            formatted_df[col] = (
-                formatted_df[col]
-                .dt.tz_localize(from_timezone, ambiguous='NaT', nonexistent='NaT')
-                .dt.tz_convert(to_timezone)
-            )
-        elif from_timezone or to_timezone:
-            raise ValueError("Both from_timezone and to_timezone must be specified for timezone conversion.")
-
-        # Apply date and time format
-        formatted_df[col] = formatted_df[col].dt.strftime(f"{date_format} {time_format}")
-
-    return formatted_df
-
-
+    return df
 
 
 
 
 import pandas as pd
 from collections import Counter
-@log_function_call
 
 def detect_delimiter(series: pd.Series) -> str:
     """
@@ -422,7 +443,7 @@ def detect_delimiter(series: pd.Series) -> str:
     # Return the most common delimiter
     most_common_delimiter, _ = Counter(delimiters).most_common(1)[0]
     return most_common_delimiter
-
+@log_function_call
 def split_column(df: pd.DataFrame, column_name: str, delimiter: str = None) -> pd.DataFrame:
     """
     Split a single column into multiple columns based on a delimiter.
@@ -462,72 +483,6 @@ def split_column(df: pd.DataFrame, column_name: str, delimiter: str = None) -> p
 
 
 import pandas as pd
-import numpy as np
-@log_function_call
-
-def impute(data, by=None, value=None, columns=None):
-    """
-    Handle missing values in a DataFrame or Series using the specified strategy, custom value, and columns.
-
-    Parameters:
-    data (pd.DataFrame or pd.Series): The DataFrame or Series with missing values (NaN represents missing values).
-    by (str or None): The strategy to use for imputing missing values.
-                      Options: 'mean', 'median', 'mode', 'interpolate', 'forward_fill', 'backward_fill'.
-                      If None, a value must be provided.
-    value: A custom value to fill NaNs with. Supports various data types.
-    columns (list of str or None): The list of column names to apply the fill operation.
-                                   If None, applies to all columns.
-
-    Returns:
-    pd.DataFrame or pd.Series: A new DataFrame or Series with missing values handled.
-    """
-    # Validate input
-    if not isinstance(data, (pd.DataFrame, pd.Series)):
-        raise TypeError("Data must be a pandas DataFrame or Series.")
-
-    if isinstance(data, pd.Series):
-        data = data.to_frame()
-
-    if columns is None:
-        # Apply to all columns if none specified
-        columns = data.columns
-
-    # Dictionary to map strategy to pandas methods
-    strategies = {
-        'mean': lambda col: col.fillna(col.mean()),
-        'median': lambda col: col.fillna(col.median()),
-        'mode': lambda col: col.fillna(col.mode().iloc[0]),
-        'interpolate': lambda col: col.interpolate(),
-        'forward_fill': lambda col: col.ffill(),
-        'backward_fill': lambda col: col.bfill()
-    }
-
-    # Handle missing values
-    if by is not None and by not in strategies:
-        raise ValueError("Invalid strategy. Use one of ['mean', 'median', 'mode', 'interpolate', 'forward_fill', 'backward_fill'].")
-
-    result = data.copy()
-
-    for col in columns:
-        if col not in data.columns:
-            raise ValueError(f"Column {col} is not in the DataFrame.")
-
-        if by:
-            # Apply the selected strategy
-            result[col] = strategies[by](result[col])
-        elif value is not None:
-            # Use the custom value for filling
-            result[col].fillna(value, inplace=True)
-        else:
-            raise ValueError("Either a strategy ('by') or a value must be provided.")
-
-    return result
-
-
-
-
-
-import pandas as pd
 from spellchecker import SpellChecker
 
 # Initialize SpellCheckers for different dictionaries
@@ -537,7 +492,6 @@ spell_checker_dict = {
     # 'en_AU': SpellChecker(language='en_AU'),
     # 'en_IE': SpellChecker(language='en_IE')
 }
-@log_function_call
 
 def spell_check_dataframe(data, dictionary='en_US', columns=None):
     """
@@ -606,8 +560,8 @@ def detect_invalid_dates(series):
         return pd.Series([False] * len(series), index=series.index)
     except (ValueError, TypeError):
         return pd.to_datetime(series, errors='coerce').isna()
-
-def detect_data_entry_errors(data, spellcheck_dict='en_US', date_columns=None, numeric_columns=None, text_columns=None):
+@log_function_call
+def detect_errors(data, spellcheck_dict='en_US', date_columns=None, numeric_columns=None, text_columns=None):
     """
     Detect and flag data entry errors in a DataFrame, including invalid dates and misspelled words.
 
@@ -667,7 +621,7 @@ def detect_data_entry_errors(data, spellcheck_dict='en_US', date_columns=None, n
 import pandas as pd
 @log_function_call
 
-def data_type_conversions(data, column=None):
+def convert_type(data, column=None):
     """
     Recommend and apply data type conversions for a given DataFrame or Series based on the analysis of each column's data.
 
@@ -835,6 +789,165 @@ def detect_outliers(data, method='iqr', threshold=1.5, columns=None, handle_miss
             outliers[col] = (data[col] < lower_bound) | (data[col] > upper_bound)
 
     return outliers if handle_missing else data.isna() | outliers
+
+
+
+import re
+import pandas as pd
+@log_function_call
+
+def remove_chars(text, remove_multiple_spaces=False, custom_characters=None):
+    """
+    Trims leading and trailing spaces and handles multiple spaces within the text.
+    Optionally removes custom characters.
+
+    Parameters:
+    - text (str): The input string to be cleaned.
+    - remove_multiple_spaces (bool): If True, all extra spaces will be removed; 
+      otherwise, only leading, trailing, and extra spaces between words will be reduced to one.
+    - custom_characters (str or None): A string of characters to be removed from the text. 
+      If None, no custom characters will be removed.
+
+    Returns:
+    - str: The cleaned text with appropriate spaces and optional custom characters removed.
+    """
+    if isinstance(text, str):
+        # Trim leading and trailing spaces
+        trimmed_text = text.strip()
+
+        if remove_multiple_spaces:
+            # Remove all extra spaces
+            cleaned_text = re.sub(r'\s+', '', trimmed_text)
+        else:
+            # Replace multiple spaces with a single space
+            cleaned_text = re.sub(r'\s+', ' ', trimmed_text)
+
+        if custom_characters:
+            # Remove custom characters if specified
+            cleaned_text = re.sub(f'[{re.escape(custom_characters)}]', '', cleaned_text)
+
+        return cleaned_text
+    else:
+        return text  # Return as is if it's not a string
+
+
+
+
+
+import pandas as pd
+@log_function_call
+
+def reformat(df, target_column, reference_column):
+    """
+    Applies the data type and formatting from a reference column to a target column in the same DataFrame.
+    
+    Parameters:
+    - df (pd.DataFrame): The DataFrame containing both the target and reference columns.
+    - target_column (str): The name of the column to format.
+    - reference_column (str): The name of the column to borrow formatting from.
+    
+    Returns:
+    - pd.DataFrame: The DataFrame with the target column formatted based on the reference column.
+    
+    Raises:
+    - ValueError: If the target column or reference column does not exist in the DataFrame.
+    - TypeError: If the reference column is not of a type that can be applied to the target column.
+    """
+    
+    # Check if the target and reference columns exist in the DataFrame
+    if target_column not in df.columns:
+        raise ValueError(f"Column '{target_column}' does not exist in the DataFrame.")
+    if reference_column not in df.columns:
+        raise ValueError(f"Column '{reference_column}' does not exist in the DataFrame.")
+    
+    # Get the data type of the reference column
+    ref_dtype = df[reference_column].dtype
+    
+    # Check and apply formatting based on data type
+    if pd.api.types.is_datetime64_any_dtype(ref_dtype):
+        # If the reference column is datetime, convert the target column to datetime
+        try:
+            df[target_column] = pd.to_datetime(df[target_column], errors='coerce')
+        except Exception as e:
+            raise TypeError(f"Error converting '{target_column}' to datetime: {e}")
+    elif pd.api.types.is_numeric_dtype(ref_dtype):
+        # If the reference column is numeric, convert the target column to numeric
+        try:
+            df[target_column] = pd.to_numeric(df[target_column], errors='coerce')
+        except Exception as e:
+            raise TypeError(f"Error converting '{target_column}' to numeric: {e}")
+    elif pd.api.types.is_string_dtype(ref_dtype):
+        # If the reference column is string, apply string formatting based on the reference column's format
+        ref_sample = df[reference_column].dropna().astype(str).iloc[0]
+        
+        if ref_sample.isupper():
+            # If reference column is uppercase, convert target column to uppercase
+            df[target_column] = df[target_column].astype(str).str.upper()
+        elif ref_sample.islower():
+            # If reference column is lowercase, convert target column to lowercase
+            df[target_column] = df[target_column].astype(str).str.lower()
+        elif ref_sample.istitle():
+            # If reference column is title case, convert target column to title case
+            df[target_column] = df[target_column].astype(str).str.title()
+        else:
+            # For other string formats, simply convert to string
+            df[target_column] = df[target_column].astype(str)
+    else:
+        # For other types, raise an error or handle accordingly
+        raise TypeError(f"Data type '{ref_dtype}' of reference column is not supported for formatting.")
+    
+    return df
+
+
+
+
+
+import pandas as pd
+import numpy as np
+@log_function_call
+
+def scale_data(df, column_name, method='min-max'):
+    """
+    Scales the specified column in the DataFrame using the given scaling method.
+    
+    Parameters:
+    - df (pd.DataFrame): The DataFrame containing the data to scale.
+    - column_name (str): The name of the column to scale.
+    - method (str): The scaling method to use. Options are 'min-max', 'robust', and 'standard'.
+    
+    Returns:
+    - pd.DataFrame: The DataFrame with the specified column scaled.
+    
+    Raises:
+    - ValueError: If the specified method is not recognized.
+    """
+    
+    if method == 'min-max':
+        # Min-Max Scaling
+        X = df[column_name]
+        X_min = X.min()
+        X_max = X.max()
+        df[column_name] = (X - X_min) / (X_max - X_min)
+        
+    elif method == 'robust':
+        # Robust Scaling
+        X = df[column_name]
+        median = X.median()
+        IQR = X.quantile(0.75) - X.quantile(0.25)
+        df[column_name] = (X - median) / IQR
+        
+    elif method == 'standard':
+        # Standard Scaling
+        X = df[column_name]
+        mean = X.mean()
+        std = X.std()
+        df[column_name] = (X - mean) / std
+        
+    else:
+        raise ValueError(f"Scaling method '{method}' is not recognized. Choose from 'min-max', 'robust', or 'standard'.")
+    
+    return df
+
 
 
 
