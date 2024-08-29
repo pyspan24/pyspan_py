@@ -108,21 +108,21 @@ to_timezone (str): Desired timezone for the datetime column(s).
 Returns
 pd.DataFrame: DataFrame with added and formatted date/time features.
 
-6. split_column(df: pd.DataFrame, column_name: str, delimiter: str = None) -> pd.DataFrame
+6. split_column(df: pd.DataFrame, column: str, delimiter: str = None) -> pd.DataFrame
 Splits a single column into multiple columns based on a delimiter.
 Parameters:
 df: DataFrame containing the column to split.
-column_name: Name of the column to be split.
+column: Name of the column to be split.
 delimiter: Delimiter to use for splitting (optional) e.g delimiter (, ;, |).
 
-7. detect_errors(data, spellcheck_dict='en_US', date_columns=None, numeric_columns=None, text_columns=None) -> pd.DataFrame
+7. detect_errors(data, date_columns=None, numeric_columns=None, text_columns=None, date_format='%Y-%m-%d'--> Optional) -> pd.DataFrame
 Detects and flags data entry errors including invalid dates and misspelled words.
 Parameters:
 data: DataFrame to analyze.
-spellcheck_dict: Dictionary to use for spell checking.
 date_columns: List of columns to check for invalid dates.
 numeric_columns: List of columns to check for numeric format errors.
 text_columns: List of text columns to perform spell checking on.
+date_format: By specifying the format, you help the function correctly identify valid dates and detect any deviations from the expected pattern. Expected date format: "YYYY-MM-DD" or "MM/DD/YYYY"
 
 8. convert_type(data, column=None) -> pd.DataFrame or pd.Series
 Recommends and applies data type conversions based on the analysis of each column's data.
@@ -143,15 +143,15 @@ handle_missing: Whether to handle missing values by dropping them or not.
 display_logs()
 Prints stored log entries.
 
-11. remove_chars(text, remove_multiple_spaces=False, custom_characters=None):
-The remove_chars function is used to clean and format text by trimming leading and trailing spaces, handling multiple spaces within the text, and optionally removing custom characters.
-
+11. remove_chars(df, columns, strip_all=False, custom_characters=None):
+The remove_chars function is used to clean and format text in specified columns of a pandas DataFrame. It trims leading and trailing spaces, handles multiple spaces within the text, and optionally removes custom characters.
 Parameters
-text (str): The input string to be cleaned.
-remove_multiple_spaces (bool): If True, all extra spaces within the text will be removed. Otherwise, only leading, trailing, and extra spaces between words will be reduced to a single space. Default is False.
+df (pd.DataFrame): The DataFrame containing the columns to be cleaned.
+columns (list of str): A list of column names to which the cleaning function will be applied.
+strip_all (bool): If True, all extra spaces within the text will be removed. Otherwise, only leading, trailing, and extra spaces between words will be reduced to a single space. Default is False.
 custom_characters (str or None): A string of characters to be removed from the text. If None, no custom characters will be removed. Default is None.
 Returns
-str: The cleaned text with appropriate spaces and optional custom characters removed.
+pd.DataFrame: The DataFrame with the specified columns cleaned, with appropriate spaces and optional custom characters removed.
 
 12. reformat(df, target_column, reference_column)
 
@@ -200,7 +200,7 @@ df_cleaned_remove = handle_nulls(df, columns='column ', action='remove', inplace
 df_cleaned_replace = handle_nulls(df, columns='column ', action='replace', with_val='Unknown', inplace=False)
 
 # 3. Impute null values in the column using the mode
-df_cleaned_impute_mode = handle_nulls(df, columns='column ', action='impute', impute_strategy='mode', inplace=False)
+df_cleaned_impute_mode = handle_nulls(df, columns='column ', action='impute', by='mode', inplace=False)
 
 # Example usage of remove
 # Remove duplicate rows based on column 
@@ -225,7 +225,7 @@ date_format="%d-%m-%Y",time_format="%I:%M %p",from_timezone='UTC',to_timezone='A
 df_split = split_column(df, column_name='ColumnName', delimiter=','--> Optional)
 
 # Example usage of detect_errors
-errors = detect_errors(df, spellcheck_dict='en_US', date_columns=['DateColumn'], numeric_columns=['NumericColumn'], text_columns=['TextColumn'])
+errors = detect_errors(df, date_columns=['DateColumn'], numeric_columns=['NumericColumn'], text_columns=['TextColumn'])
 
 # Example usage of convert_type
 df_converted = convert_type(df)
@@ -238,20 +238,14 @@ display_logs()
 
 
 # Example usage of remove_chars
-## Apply the remove_chars function to the 'Name' column
-df['Name'] = df['Name'].apply(remove_chars) 
+# Apply the remove_chars function to the 'Column' (keeping one space between words)
+df = remove_chars(df, ['Column', 'Column']) 
 
-## Apply the remove_chars function to all string columns in the DataFrame
-df = df.applymap(lambda x: remove_chars(x) if isinstance(x, str) else x)
+# Apply the remove_chars function with strip_all=True to the 'column' (removing all extra spaces)
+df = remove_chars(df, ['Column', 'Column'], strip_all=True)
 
-# Apply the remove_chars function with remove_multiple_spaces=True to all string columns
-df = df.applymap(lambda x: remove_chars(x, remove_multiple_spaces=True) if isinstance(x, str) else x)
-
-# Apply the remove_chars function with custom characters (e.g., spaces, !, : etc) to all string columns
-df = df.applymap(lambda x: remove_chars(x, custom_characters=' ') if isinstance(x, str) else x)
-
-# Explanation of applymap with lambda x:
-applymap(lambda x: clean_spaces(x) if isinstance(x, str) else x): This command applies the clean_spaces function to every element in the DataFrame. It checks if each element x is a string (isinstance(x, str)), and if so, it cleans it. Non-string elements remain unchanged.
+# Apply the remove_chars function with custom characters (e.g., spaces) to the 'XYZ' columns
+df = remove_chars(df, ['Column', 'Column'], custom_characters=' ') e.g(any custom character )
 
 # Example usage of reformat
 # Apply formatting from 'target_column' to 'reference_column' 
@@ -260,6 +254,7 @@ df = reformat(df, 'target_column', 'reference_column')
 # Example usage of scale_data
 # Apply Min-Max Scaling to columns 'A' and 'B'
 df_scaled = scale_data(df, method='minmax', columns=['A', 'B'])
+
 
 # License
 This package is licensed under the MIT License. See the LICENSE file for more details.
