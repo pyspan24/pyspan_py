@@ -1,193 +1,368 @@
-# pyspan
+# Pyspan Overview 
 
-## 'pyspan' is a Python package designed to facilitate data cleaning and preprocessing using Pandas. It provides various functions to handle missing values, detect outliers, spell check detect_errors, and more. Additionally, it includes a logging utility to keep track of function calls and their parameters.
+🎉🎉🎉 Welcome to **pyspan**! 🎉🎉🎉
 
-Installation
+**pyspan** is a Python package that simplifies data cleaning and preprocessing with Pandas. It offers functions for handling missing values, detecting outliers, performing spell checks, 
+identifying errors, and more. The package also includes a logging utility to track function calls and parameters efficiently.
 
-To use pyspan, simply install the package using pip:
+🚀  *Installation Process*
+To get started with **pyspan**, install the package using pip:
 
-``bash
+```bash
 pip install pyspan 
+```
 
-# Functions
+## Functions
 
-1. handle_nulls(data: pd.DataFrame,columns: Optional[Union[str, List[str]]] = None,action: str = 'remove',with_val: Optional[Union[int, float, str]] = None,by: Optional[str] = None,inplace: bool = False) -> Optional[pd.DataFrame]
-Description
-handle_nulls manages null values within the specified columns of a DataFrame using different strategies. You can choose to remove rows with nulls, replace nulls with a custom value, or impute nulls using a predefined strategy (e.g., mean, median, mode).
-Parameters:
-data: pd.DataFrame
-The input DataFrame containing missing values.
+## 1. `handle_nulls`
 
-columns: Optional[Union[str, List[str]]]
-A column name or list of column names where the fill operation should be applied. If not provided, the function will apply to the entire DataFrame.
+**Description**  
+The `handle_nulls` function manages missing values within specified columns of a DataFrame using various strategies. You can choose to remove rows with null values, replace them with a custom value, or impute missing values using predefined strategies such as mean, median, or mode.
 
-action: str
-The strategy to use for handling missing values. Options include:
+**Parameters:**
 
-'remove': Drops rows containing null values in the specified columns.
-'replace': Replaces null values with a specified custom value.
-'impute': Imputes null values using a chosen strategy (e.g., mean, median, mode, interpolate, forward fill, backward fill).
-with_val: Optional[Union[int, float, str]]
-The custom value to replace NaNs with, applicable only if action='replace'.
+- **`data`** (`pd.DataFrame`):  
+  The input DataFrame containing missing values.
 
-by: Optional[str]
-The strategy to use for imputing null values, applicable only if action='impute'. Available options are:
+- **`columns`** (`Optional[Union[str, List[str]]]`, default: `None`):  
+  A single column name or a list of column names to apply the operation. If not provided, the function applies to the entire DataFrame.
 
-'mean': Impute with the mean of the column.
-'median': Impute with the median of the column.
-'mode': Impute with the most frequent value in the column.
-'interpolate': Use linear interpolation to impute missing values.
-'forward_fill': Propagate the last valid observation forward to the next.
-'backward_fill': Use the next valid observation to fill the gaps backward.
-inplace: bool
-Whether to modify the DataFrame in place. If True, the operation modifies the DataFrame directly and returns None. If False, returns a new DataFrame with the null values handled according to the specified action.
+- **`action`** (`str`, default: `'remove'`):  
+  The strategy to handle missing values. Options include:
+  - `'remove'`: Drops rows with null values in the specified columns.
+  - `'replace'`: Replaces null values with a specified custom value.
+  - `'impute'`: Imputes missing values using a chosen strategy (e.g., mean, median, mode, interpolate, forward fill, backward fill).
 
-Returns:
-Optional[pd.DataFrame]: The DataFrame with handled null values, or None if inplace=True.
+- **`with_val`** (`Optional[Union[int, float, str]]`, default: `None`):  
+  The custom value to replace NaNs with, applicable only if `action='replace'`.
 
-2. remove(df: pd.DataFrame, operation: str, columns: Optional[Union[str, List[str]]] = None, keep: Optional[str] = 'first', consider_all: bool = True, inplace: bool = False) -> Optional[pd.DataFrame]:
+- **`by`** (`Optional[str]`, default: `None`):  
+  The strategy for imputing missing values, applicable only if `action='impute'`. Available options are:
+  - `'mean'`: Impute with the mean of the column.
+  - `'median'`: Impute with the median of the column.
+  - `'mode'`: Impute with the most frequent value in the column.
+  - `'interpolate'`: Use linear interpolation to impute missing values.
+  - `'forward_fill'`: Propagate the last valid observation forward.
+  - `'backward_fill'`: Use the next valid observation to fill the gaps backward.
 
-Description
-The remove function handles two types of DataFrame modifications: removing duplicate rows or removing specific columns. The type of operation is specified by the operation parameter.
+- **`inplace`** (`bool`, default: `False`):  
+  If `True`, modifies the DataFrame in place and returns `None`. If `False`, returns a new DataFrame with null values handled according to the specified action.
 
-Parameters
-df (pd.DataFrame): The input DataFrame on which the operation will be performed.
+**Returns:**  
+- `Optional[pd.DataFrame]`: The DataFrame with null values handled, or `None` if `inplace=True`.
 
-operation (str): Specifies the type of removal operation. Options are:
 
-'duplicates': To remove duplicate rows.
-'columns': To remove specified columns.
-columns (Optional[Union[str, List[str]]]): Column(s) to consider for the operation:
 
-For 'duplicates': Columns to check for duplicates.
-For 'columns': Column(s) to be removed.
-keep (Optional[str]): Determines which duplicates to keep. Options are:
+## 2. `remove`
 
-'first': Keep the first occurrence of each duplicate.
-'last': Keep the last occurrence of each duplicate.
-'none': Remove all duplicates. Default is 'first'.
-consider_all (bool): Relevant only when operation is 'duplicates'. If True, removes the entire row if any duplicates are found in the specified columns. Default is True.
+**Description**  
+The `remove` function handles two types of DataFrame modifications: removing duplicate rows or removing specific columns. The type of operation is specified by the `operation` parameter.
 
-inplace (bool): If True, modifies the DataFrame in place. If False, returns a new DataFrame. Default is False.
+**Parameters:**
 
-Returns
-Optional[pd.DataFrame]: DataFrame with duplicates removed or columns removed according to the specified criteria. Returns None if inplace=True.
-Raises
-ValueError: If invalid columns are specified or operation is invalid.
-TypeError: If input types are incorrect.
+- **`df`** (`pd.DataFrame`):  
+  The input DataFrame on which the operation will be performed.
 
-3. auto_rename_columns(df: pd.DataFrame) -> pd.DataFrame
+- **`operation`** (`str`):  
+  Specifies the type of removal operation. Options are:
+  - `'duplicates'`: To remove duplicate rows.
+  - `'columns'`: To remove specified columns.
+
+- **`columns`** (`Optional[Union[str, List[str]]]`, default: `None`):  
+  Columns to consider for the operation:
+  - For `'duplicates'`: Columns to check for duplicates.
+  - For `'columns'`: Columns to be removed.
+
+- **`keep`** (`Optional[str]`, default: `'first'`):  
+  Determines which duplicates to keep. Options are:
+  - `'first'`: Keep the first occurrence of each duplicate.
+  - `'last'`: Keep the last occurrence of each duplicate.
+  - `'none'`: Remove all duplicates.
+
+- **`consider_all`** (`bool`, default: `True`):  
+  Relevant only when `operation` is `'duplicates'`. If `True`, removes the entire row if any duplicates are found in the specified columns.
+
+- **`inplace`** (`bool`, default: `False`):  
+  If `True`, modifies the DataFrame in place. If `False`, returns a new DataFrame.
+
+**Returns:**  
+- `Optional[pd.DataFrame]`: DataFrame with duplicates removed or columns removed according to the specified criteria. Returns `None` if `inplace=True`.
+
+**Raises:**
+- `ValueError`: If invalid columns are specified or operation is invalid.
+- `TypeError`: If input types are incorrect.
+
+---
+## 3. `auto_rename_columns`
+
+**Description**  
 Automatically renames columns to remove spaces and special characters.
-Parameters:
-df: DataFrame to rename columns in.
 
-4. rename_dataframe_columns(df: pd.DataFrame, rename_dict: dict) -> pd.DataFrame
+**Parameters:**
+
+- **`df`** (`pd.DataFrame`):  
+  DataFrame to rename columns in.
+
+**Returns:**  
+- `pd.DataFrame`: DataFrame with columns renamed.
+
+---
+
+
+## 4. `rename_dataframe_columns`
+
+**Description**  
 Renames columns in a DataFrame using a provided dictionary mapping.
-Parameters:
-df: DataFrame to rename columns in.
-rename_dict: Dictionary mapping current column names to new column names.
 
-5. format_dt(df: pd.DataFrame,column_name: str,add_day: bool = False,add_month: bool = False,add_year: bool = False,add_quarter: bool = False,add_hour: bool = False,add_minute: bool = False,add_day_of_week: bool = False,date_format: str = "%Y-%m-%d",time_format: str = "%H:%M:%S",from_timezone: Optional[str] = None,to_timezone: Optional[str] = None) -> pd.DataFrame:
+**Parameters:**
 
+- **`df`** (`pd.DataFrame`):  
+  DataFrame to rename columns in.
+
+- **`rename_dict`** (`dict`):  
+  Dictionary mapping current column names to new column names.
+  
+  **Returns:**  
+- `pd.DataFrame`: DataFrame with columns renamed according to `rename_dict`.
+
+---
+
+## 5. `format_dt`
+
+**Description**  
 Adds additional date/time-based columns to a DataFrame and formats date/time columns.
 
-Parameters
-df (pd.DataFrame): DataFrame to which new date/time features will be added.
-column_name: The name of the column containing date/time data.
-day: If True, adds a column with the day of the month.
-month: If True, adds a column with the month.
-year: If True, adds a column with the year.
-quarter: If True, adds a column with the quarter of the year.
-hour: If True, adds a column with the hour of the day.
-minute: If True, adds a column with the minute of the hour.
-day_of_week: If True, adds a column with the day of the week (0=Monday, 6=Sunday).
-date_format (str): Desired date format (default: "%Y-%m-%d").
-time_format (str): Desired time format (default: "%H:%M:%S").
-from_timezone (str): Original timezone of the datetime column(s).
-to_timezone (str): Desired timezone for the datetime column(s).
-Returns
-pd.DataFrame: DataFrame with added and formatted date/time features.
+**Parameters:**
 
-6. split_column(df: pd.DataFrame, column: str, delimiter: str = None) -> pd.DataFrame
+- **`df`** (`pd.DataFrame`):  
+  DataFrame to which new date/time features will be added.
+
+- **`column_name`** (`str`):  
+  The name of the column containing date/time data.
+
+- **`add_day`** (`bool`, default: `False`):  
+  If `True`, adds a column with the day of the month.
+
+- **`add_month`** (`bool`, default: `False`):  
+  If `True`, adds a column with the month.
+
+- **`add_year`** (`bool`, default: `False`):  
+  If `True`, adds a column with the year.
+
+- **`add_quarter`** (`bool`, default: `False`):  
+  If `True`, adds a column with the quarter of the year.
+
+- **`add_hour`** (`bool`, default: `False`):  
+  If `True`, adds a column with the hour of the day.
+
+- **`add_minute`** (`bool`, default: `False`):  
+  If `True`, adds a column with the minute of the hour.
+
+- **`add_day_of_week`** (`bool`, default: `False`):  
+  If `True`, adds a column with the day of the week (0=Monday, 6=Sunday).
+
+- **`date_format`** (`str`, default: `"%Y-%m-%d"`):  
+  Desired date format.
+
+- **`time_format`** (`str`, default: `"%H:%M:%S"`):  
+  Desired time format.
+
+- **`from_timezone`** (`Optional[str]`, default: `None`):  
+  Original timezone of the datetime column(s).
+
+- **`to_timezone`** (`Optional[str]`, default: `None`):  
+  Desired timezone for the datetime column(s).
+
+**Returns:**  
+- `pd.DataFrame`: DataFrame with added and formatted date/time features.
+
+---
+
+## 6. `split_column`
+
+**Description**  
 Splits a single column into multiple columns based on a delimiter.
-Parameters:
-df: DataFrame containing the column to split.
-column: Name of the column to be split.
-delimiter: Delimiter to use for splitting (optional) e.g delimiter (, ;, |).
 
-7. detect_errors(data, date_columns=None, numeric_columns=None, text_columns=None, date_format='%Y-%m-%d'--> Optional) -> pd.DataFrame
+**Parameters:**
+
+- **`df`** (`pd.DataFrame`):  
+  DataFrame containing the column to split.
+
+- **`column`** (`str`):  
+  Name of the column to be split.
+
+- **`delimiter`** (`str`, default: `None`):  
+  Delimiter to use for splitting (optional), e.g., `,`, `;`, `|`.
+
+**Returns:**  
+- `pd.DataFrame`: DataFrame with the specified column split into multiple columns.
+
+---
+
+## 7. `detect_errors`
+
+**Description**  
 Detects and flags data entry errors including invalid dates and misspelled words.
-Parameters:
-data: DataFrame to analyze.
-date_columns: List of columns to check for invalid dates.
-numeric_columns: List of columns to check for numeric format errors.
-text_columns: List of text columns to perform spell checking on.
-date_format: By specifying the format, you help the function correctly identify valid dates and detect any deviations from the expected pattern. Expected date format: "YYYY-MM-DD" or "MM/DD/YYYY"
 
-8. convert_type(data, column=None) -> pd.DataFrame or pd.Series
+**Parameters:**
+
+- **`data`** (`pd.DataFrame`):  
+  DataFrame to analyze.
+
+- **`date_columns`** (`Optional[List[str]]`, default: `None`):  
+  List of columns to check for invalid dates.
+
+- **`numeric_columns`** (`Optional[List[str]]`, default: `None`):  
+  List of columns to check for numeric format errors.
+
+- **`text_columns`** (`Optional[List[str]]`, default: `None`):  
+  List of text columns to perform spell checking on.
+
+- **`date_format`** (`str`, default: `'%Y-%m-%d'`):  
+  Expected date format for validation. 
+
+**Returns:**  
+- `pd.DataFrame`: DataFrame with detected errors flagged.
+
+---
+
+## 8. `convert_type`
+
+**Description**  
 Recommends and applies data type conversions based on the analysis of each column's data.
-Parameters:
-data: DataFrame or Series to analyze.
-column: Specific column to analyze (optional).
 
-9. detect_outliers(data, method='iqr', threshold=1.5, columns=None, handle_missing=True) -> pd.DataFrame
-Detects outliers in a dataset using specified method and threshold.
-Parameters:
-data: DataFrame or Series to analyze.
-method: Outlier detection method ('z-score', 'iqr').
-threshold: Threshold for outlier detection.
-columns: List of columns to apply the outlier detection on (optional).
-handle_missing: Whether to handle missing values by dropping them or not.
+**Parameters:**
 
-10. Logging Functions
-display_logs()
+- **`data`** (`pd.DataFrame` or `pd.Series`):  
+  DataFrame or Series to analyze.
+
+- **`column`** (`Optional[str]`, default: `None`):  
+  Specific column to analyze (optional).
+
+**Returns:**  
+- `pd.DataFrame` or `pd.Series`: DataFrame or Series with recommended data type conversions applied.
+
+---
+
+## 9. `detect_outliers`
+
+**Description**  
+Detects outliers in a dataset using specified methods and thresholds.
+
+**Parameters:**
+
+- **`data`** (`pd.DataFrame` or `pd.Series`):  
+  DataFrame or Series to analyze.
+
+- **`method`** (`str`, default: `'iqr'`):  
+  Outlier detection method. Options are:
+  - `'z-score'`: Using z-score.
+  - `'iqr'`: Using interquartile range.
+
+- **`threshold`** (`float`, default: `1.5`):  
+  Threshold for outlier detection.
+
+- **`columns`** (`Optional[List[str]]`, default: `None`):  
+  List of columns to apply outlier detection on.
+
+- **`handle_missing`** (`bool`, default: `True`):  
+  Whether to handle missing values by dropping them.
+
+**Returns:**  
+- `pd.DataFrame`: DataFrame with outliers detected.
+
+---
+
+## 10. `Logging Functions`
+
+### `display_logs`
+
+**Description**  
 Prints stored log entries.
 
-11. remove_chars(df, columns, strip_all=False, custom_characters=None):
-The remove_chars function is used to clean and format text in specified columns of a pandas DataFrame. It trims leading and trailing spaces, handles multiple spaces within the text, and optionally removes custom characters.
-Parameters
-df (pd.DataFrame): The DataFrame containing the columns to be cleaned.
-columns (list of str): A list of column names to which the cleaning function will be applied.
-strip_all (bool): If True, all extra spaces within the text will be removed. Otherwise, only leading, trailing, and extra spaces between words will be reduced to a single space. Default is False.
-custom_characters (str or None): A string of characters to be removed from the text. If None, no custom characters will be removed. Default is None.
-Returns
-pd.DataFrame: The DataFrame with the specified columns cleaned, with appropriate spaces and optional custom characters removed.
+**Returns:**  
+- `None`
 
-12. reformat(df, target_column, reference_column)
+---
+## 11. `remove_chars`
 
-The reformat function applies the data type and formatting from a reference column to a target column in the same DataFrame. It supports data types such as datetime, numeric, and string. For string columns, it also applies formatting such as uppercase, lowercase, or title case based on the reference column.
-Parameters
-df (pd.DataFrame): The DataFrame containing both the target and reference columns.
-target_column (str): The name of the column to format.
-reference_column (str): The name of the column to borrow formatting from.
-Returns
-pd.DataFrame: The DataFrame with the target column formatted based on the reference column.
-Raises
-ValueError: If the target column or reference column does not exist in the DataFrame.
-TypeError: If the reference column is not of a type that can be applied to the target column or if the data type is unsupported for formatting.
+**Description**  
+Cleans and formats text in specified columns of a DataFrame by trimming spaces and removing custom characters.
 
-13. scale_data(df, method='minmax', columns=None)
-Scales the data in a DataFrame using one of the specified scaling methods: Min-Max Scaling, Robust Scaling, or Standard Scaling.
+**Parameters:**
 
-Parameters:
-df (pd.DataFrame): The DataFrame containing the data to be scaled.
-method (str): The scaling method to use. Options are:
-'minmax': Min-Max Scaling (default)
-'robust': Robust Scaling
-'standard': Standard Scaling
-columns (list, optional): List of column names to apply scaling on. If None, scales all numerical columns.
-Returns:
-pd.DataFrame: A DataFrame with the specified columns scaled according to the selected method.
+- **`df`** (`pd.DataFrame`):  
+  The DataFrame containing the columns to be cleaned.
 
+- **`columns`** (`List[str]`):  
+  List of column names to apply the cleaning function.
 
+- **`strip_all`** (`bool`, default: `False`):  
+  If `True`, removes all extra spaces within the text.
+
+- **`custom_characters`** (`Optional[str]`, default: `None`):  
+  String of custom characters to be removed.
+
+**Returns:**  
+- `pd.DataFrame`: DataFrame with specified columns cleaned.
+
+---
+## 12. `reformat`
+
+**Description**  
+Applies the data type and formatting from a reference column to a target column in the same DataFrame.
+
+**Parameters:**
+
+- **`df`** (`pd.DataFrame`):  
+  The DataFrame containing both the target and reference columns.
+
+- **`target_column`** (`str`):  
+  The name of the column to format.
+
+- **`reference_column`** (`str`):  
+  The name of the column to borrow formatting from.
+
+**Returns:**  
+- `pd.DataFrame`: DataFrame with the target column formatted based on the reference column.
+
+**Raises:**
+- `ValueError`: If the target or reference column does not exist.
+- `TypeError`: If the reference column's type cannot be applied to the target column or if the data type is unsupported.
+
+---
+## 13. `scale_data`
+
+**Description**  
+Scales data in a DataFrame using specified scaling methods: Min-Max Scaling, Robust Scaling, or Standard Scaling.
+
+**Parameters:**
+
+- **`df`** (`pd.DataFrame`):  
+  The DataFrame containing the data to be scaled.
+
+- **`method`** (`str`, default: `'minmax'`):  
+  Scaling method to use. Options are:
+  - `'minmax'`: Min-Max Scaling.
+  - `'robust'`: Robust Scaling.
+  - `'standard'`: Standard Scaling.
+
+- **`columns`** (`Optional[List[str]]`, default: `None`):  
+  List of column names to apply scaling on. If `None`, scales all numerical columns.
+
+**Returns:**  
+- `pd.DataFrame`: DataFrame with specified columns scaled according to the selected method.
+
+  
 ## Example Usage
-Here are some examples to illustrate the usage of the functions provided in pyspan:
 
+Here are some examples to illustrate the usage of the functions provided in `pyspan`:
+
+```python
 import pandas as pd
 from pyspan import handle_nulls, remove, auto_rename_columns, rename_dataframe_columns
-from pyspan import change_dt, split_column,
-from pyspan import detect_errors, convert_type, detect_outliers
-from pyspan import display_logs, clean_spaces, remove_chars, reformat
+from pyspan import format_dt, split_column, detect_errors, convert_type, detect_outliers
+from pyspan import display_logs, remove_chars, reformat, scale_data
 
 # Load a dataset
 df = pd.read_csv('/content/GlobalSharkAttacks.csv')
@@ -207,7 +382,7 @@ df_cleaned_impute_mode = handle_nulls(df, columns='column ', action='impute', by
 df_no_duplicates = remove(df, operation='duplicates', columns='Type', keep='first', inplace=False)
 
 # Remove specified columns
-df_no_columns = remove(df, operation='columns', columns=['Type','Date'], inplace=False)
+df_no_columns = remove(df, operation='columns', columns=['Type', 'Date'], inplace=False)
 
 # Example usage of auto_rename_columns
 auto_rename_columns(df)
@@ -218,11 +393,12 @@ df_renamed_dict = rename_dataframe_columns(df, rename_dict)
 
 # Example usage of format_dt
 # Apply the function to add features and format the 'timestamp' column
-processed_df = format_dt(df,column_name='timestamp',day=True,month=True,year=True,quarter=True,hour=True,minute=True,day_of_week=True,
-date_format="%d-%m-%Y",time_format="%I:%M %p",from_timezone='UTC',to_timezone='America/New_York')
+processed_df = format_dt(df, column_name='timestamp', day=True, month=True, year=True, quarter=True,
+                          hour=True, minute=True, day_of_week=True, date_format="%d-%m-%Y",
+                          time_format="%I:%M %p", from_timezone='UTC', to_timezone='America/New_York')
 
 # Example usage of split_column
-df_split = split_column(df, column_name='ColumnName', delimiter=','--> Optional)
+df_split = split_column(df, column='ColumnName', delimiter=',')
 
 # Example usage of detect_errors
 errors = detect_errors(df, date_columns=['DateColumn'], numeric_columns=['NumericColumn'], text_columns=['TextColumn'])
@@ -236,29 +412,36 @@ outliers = detect_outliers(df, method='iqr', threshold=1.5)
 # Example usage of display_logs
 display_logs()
 
-
 # Example usage of remove_chars
 # Apply the remove_chars function to the 'Column' (keeping one space between words)
-df = remove_chars(df, ['Column', 'Column']) 
+df_cleaned_spaces = remove_chars(df, columns=['Column'], strip_all=False)
 
-# Apply the remove_chars function with strip_all=True to the 'column' (removing all extra spaces)
-df = remove_chars(df, ['Column', 'Column'], strip_all=True)
+# Apply the remove_chars function with strip_all=True to the 'Column' (removing all extra spaces)
+df_cleaned_strip_all = remove_chars(df, columns=['Column'], strip_all=True)
 
 # Apply the remove_chars function with custom characters (e.g., spaces) to the 'XYZ' columns
-df = remove_chars(df, ['Column', 'Column'], custom_characters=' ') e.g(any custom character )
+df_cleaned_custom_chars = remove_chars(df, columns=['Column'], custom_characters=' ')
 
 # Example usage of reformat
-# Apply formatting from 'target_column' to 'reference_column' 
-df = reformat(df, 'target_column', 'reference_column')
+# Apply formatting from 'reference_column' to 'target_column'
+df_reformatted = reformat(df, target_column='target_column', reference_column='reference_column')
 
 # Example usage of scale_data
 # Apply Min-Max Scaling to columns 'A' and 'B'
 df_scaled = scale_data(df, method='minmax', columns=['A', 'B'])
 
+---
+## License
 
-# License
-This package is licensed under the MIT License. See the LICENSE file for more details.
+---
 
-# Contact
-For issues or questions, please contact [amynahreimoo@gmail.com].
+This package is licensed under the MIT License. See the [LICENSE](LICENSE) file for more details.
+
+---
+
+## Contact
+
+For issues or questions, please contact [amynahreimoo@gmail.com](mailto:amynahreimoo@gmail.com).
+
+---
 
