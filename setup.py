@@ -2,10 +2,10 @@ from setuptools import setup
 
 setup(
     name="pyspan",
-    version="0.2.0",
+    version="0.2.1",
     py_modules=["pyspan"],
     description="A Python package for efficient data cleaning and preprocessing with Pandas.",
-    long_description=open("README.md").read(),
+    long_description=open("README.md", encoding='utf-8').read(),
     long_description_content_type="text/markdown",
     author="Noor Surani, Amynah Reimoo",
     author_email="nsurani@hotmail.com, amynahreimoo@gmail.com",

@@ -51,7 +51,7 @@ The `handle_nulls` function manages missing values within specified columns of a
 **Returns:**  
 - `Optional[pd.DataFrame]`: The DataFrame with null values handled, or `None` if `inplace=True`.
 
-
+---
 
 ## 2. `remove`
 
@@ -107,7 +107,6 @@ Automatically renames columns to remove spaces and special characters.
 - `pd.DataFrame`: DataFrame with columns renamed.
 
 ---
-
 
 ## 4. `rename_dataframe_columns`
 
@@ -284,6 +283,7 @@ Prints stored log entries.
 - `None`
 
 ---
+
 ## 11. `remove_chars`
 
 **Description**  
@@ -307,6 +307,7 @@ Cleans and formats text in specified columns of a DataFrame by trimming spaces a
 - `pd.DataFrame`: DataFrame with specified columns cleaned.
 
 ---
+
 ## 12. `reformat`
 
 **Description**  
@@ -331,6 +332,7 @@ Applies the data type and formatting from a reference column to a target column 
 - `TypeError`: If the reference column's type cannot be applied to the target column or if the data type is unsupported.
 
 ---
+
 ## 13. `scale_data`
 
 **Description**  
@@ -354,6 +356,7 @@ Scales data in a DataFrame using specified scaling methods: Min-Max Scaling, Rob
 - `pd.DataFrame`: DataFrame with specified columns scaled according to the selected method.
 
 ---
+
 ## 14. `undo`
 
 **Description**  
@@ -370,6 +373,7 @@ Returns:
 If no changes have been made, undo will print a message saying there are no recent changes to undo.
 
 ---
+
 ## 15. `customer_sales_data`
 
 **Description**
@@ -398,6 +402,7 @@ This function does not take any parameters.
 This dataset contains a variety of messy data, such as inconsistent date formats, mixed data types, missing values, and outliers, making it suitable for testing data cleaning and preprocessing techniques.
 
 ---
+
 ## 16. `convert_unit`
 
 **Description**
@@ -529,8 +534,9 @@ converted_df = convert_unit(data=df, column='Distance', unit_category='length', 
 
 # Convert 'Temperature' column from Fahrenheit to Kelvin
 converted_df_temp = convert_unit(data=df, column='Temperature', unit_category='temperature', from_unit='F', to_unit='K')
-
+```
 ---
+
 ## License
 
 ---
