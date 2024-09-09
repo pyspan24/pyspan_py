@@ -353,7 +353,91 @@ Scales data in a DataFrame using specified scaling methods: Min-Max Scaling, Rob
 **Returns:**  
 - `pd.DataFrame`: DataFrame with specified columns scaled according to the selected method.
 
-  
+---
+## 14. `undo`
+
+**Description**  
+Reverts a DataFrame to the previous state by undoing the most recent modification. The undo function works in conjunction with the track_changes decorator, which saves the current DataFrame state before any changes are made.
+
+**Parameters:**
+No parameters are passed to the undo function, but it operates on a globally tracked DataFrame (_df) and its history.
+Returns:
+
+**Returns:**  
+- `pd.DataFrame`: The DataFrame in its previous state before the most recent modification.
+
+**Note:** 
+If no changes have been made, undo will print a message saying there are no recent changes to undo.
+
+---
+## 15. `customer_sales_data`
+
+**Description**
+Loads the Customer Sales Data, a simulated dataset containing various customer sales records. This dataset includes columns with missing values, inconsistent formats, and outliers, providing an opportunity for data cleaning and manipulation.
+
+**Parameters:**
+This function does not take any parameters.
+
+**Returns:**
+
+-`pd.DataFrame`: A DataFrame containing the Customer Sales Data with the following columns:
+-`CustomerID`: Unique identifier for each customer.
+-`Age`: Age of the customer (may include missing values and inconsistent formats).
+-`Gender`: Gender of the customer (may include missing values).
+-`PurchaseHistory`: List of previous purchases made by the customer.
+-`ProductCategory`: Category of the product purchased (e.g., "Electronics", "Apparel").
+-`PurchaseDate`: Date of the purchase (may include inconsistent formats).
+-`AmountSpent`: Total amount spent on the purchase, including outliers.
+-`PaymentMethod`: Method of payment used (e.g., "Credit Card", "Cash"; includes mixed data types).
+-`Country`: Country of the customer.
+-`MembershipStatus`: Membership status of the customer (e.g., "Regular", "Gold", "Platinum"; may include missing values).
+-`PhoneNumber`: Phone number of the customer, with various formats.
+-`DiscountCode`: Discount code used in the transaction, with duplicates included.
+
+**Note:**
+This dataset contains a variety of messy data, such as inconsistent date formats, mixed data types, missing values, and outliers, making it suitable for testing data cleaning and preprocessing techniques.
+
+---
+## 16. `convert_unit`
+
+**Description**
+The convert_unit function is designed to detect and convert units within a specific column of a Pandas DataFrame. This function supports conversions across multiple categories like length, mass, volume, temperature, and more. It efficiently handles data conversions while accounting for units with inconsistent formats or missing values. This function is useful for data cleaning and preprocessing, ensuring consistency across datasets with mixed unit formats.
+
+**Parameters:**
+
+- **`df`** (`pd.DataFrame`):  
+The DataFrame containing the data for unit conversion.
+
+-**`column`** (`str`):
+The name of the column where unit conversion should be applied.
+
+-**`unit_category`** (`str`):
+The category of units for conversion (e.g., 'length', 'mass', 'temperature').
+
+-**`from_unit`** (`str`):
+The unit of the values to be converted (e.g., 'cm', 'kg').
+
+-**`to_unit`** (`str`):
+The target unit for the conversion (e.g., 'm', 'g').
+
+**Returns:**
+
+-`pd.DataFrame`: A new DataFrame with the values in the specified column converted to the target unit. It also retains any non-numeric values in the original column.
+
+**Supported Unit Categories and Examples:**
+
+-`length`: 'mm', 'cm', 'm', 'km', 'in', 'ft', 'yd', 'mi'
+-`mass`: 'mg', 'g', 'kg', 'ton', 'lb', 'oz'
+-`time`: 's', 'min', 'h', 'day', 'week', 'month', 'year'
+-`volume`: 'ml', 'l', 'm3', 'ft3', 'gal'
+-`temperature`: 'C', 'F', 'K'
+-`speed`: 'm/s', 'km/h', 'mph'
+-`energy`: 'J', 'kJ', 'cal'
+-`area`: 'm2', 'km2', 'ft2'
+-`pressure`: 'Pa', 'bar', 'atm', 'psi'
+
+---
+
 ## Example Usage
 
 Here are some examples to illustrate the usage of the functions provided in `pyspan`:
@@ -362,7 +446,8 @@ Here are some examples to illustrate the usage of the functions provided in `pys
 import pandas as pd
 from pyspan import handle_nulls, remove, auto_rename_columns, rename_dataframe_columns
 from pyspan import format_dt, split_column, detect_errors, convert_type, detect_outliers
-from pyspan import display_logs, remove_chars, reformat, scale_data
+from pyspan import display_logs, remove_chars, reformat, scale_data, undo
+from pyspan import customer_sales_data, convert_unit
 
 # Load a dataset
 df = pd.read_csv('/content/GlobalSharkAttacks.csv')
@@ -429,6 +514,21 @@ df_reformatted = reformat(df, target_column='target_column', reference_column='r
 # Example usage of scale_data
 # Apply Min-Max Scaling to columns 'A' and 'B'
 df_scaled = scale_data(df, method='minmax', columns=['A', 'B'])
+
+# Example usage of undo
+# Undo the most recent change
+df = undo()
+
+# Example usage of Dataset 'customer_sales_data'
+# Load the Customer Sales Data dataset
+df = load_customer_sales_data()
+
+# Example usage of convert_unit
+# Convert 'Distance' column from meters to nautical miles
+converted_df = convert_unit(data=df, column='Distance', unit_category='length', from_unit='m', to_unit='nmi',)
+
+# Convert 'Temperature' column from Fahrenheit to Kelvin
+converted_df_temp = convert_unit(data=df, column='Temperature', unit_category='temperature', from_unit='F', to_unit='K')
 
 ---
 ## License

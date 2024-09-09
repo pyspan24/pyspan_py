@@ -30,11 +30,46 @@ def display_logs():
 
 
 
+import pandas as pd
+import copy
 
+# Global variables to track DataFrame and its history
+_df = None
+_history = []
+
+def save_state(df):
+    """
+    Save the current state of the DataFrame before modification.
+    """
+    global _history
+    _history.append(copy.deepcopy(df))
+
+@log_function_call
+def undo():
+    """
+    Undo the most recent change to the DataFrame.
+    """
+    global _df, _history
+    if _history:
+        _df = _history.pop()
+    else:
+        print("No recent changes to undo!")
+    return _df
+
+# Decorator to track changes and save the previous state
+def track_changes(func):
+    def wrapper(df, *args, **kwargs):
+        save_state(df)  # Save the current state of the DataFrame
+        result = func(df, *args, **kwargs)
+        global _df
+        _df = result
+        return result
+    return wrapper
 
 import pandas as pd
 from typing import Optional, Union, List
 @log_function_call
+@track_changes
 
 def handle_nulls(
     df: pd.DataFrame,
@@ -120,6 +155,8 @@ import pandas as pd
 from typing import Optional, Union, List
 
 @log_function_call
+@track_changes
+
 def remove(
     df: pd.DataFrame,
     operation: str,
@@ -270,6 +307,8 @@ def apply_column_renames(df: pd.DataFrame, rename_map: dict) -> None:
         df.rename(columns=rename_map, inplace=True)
 
 @log_function_call
+@track_changes
+
 def auto_rename_columns(df: pd.DataFrame) -> None:
     """
     Provide an interactive prompt for users to apply recommended column renaming.
@@ -305,6 +344,7 @@ def auto_rename_columns(df: pd.DataFrame) -> None:
 
 import pandas as pd
 @log_function_call
+@track_changes
 
 def rename_dataframe_columns(df: pd.DataFrame, rename_dict: dict) -> pd.DataFrame:
     """
@@ -341,6 +381,7 @@ import pandas as pd
 import pytz
 from typing import Union, List, Optional
 @log_function_call
+@track_changes
 
 def format_dt(
     df: pd.DataFrame,
@@ -458,6 +499,8 @@ def detect_delimiter(series: pd.Series) -> str:
     return most_common_delimiter
 
 @log_function_call
+@track_changes
+
 def split_column(df: pd.DataFrame, column: str, delimiter: str = None) -> pd.DataFrame:
     """
     Split a single column into multiple columns based on a delimiter.
@@ -550,6 +593,8 @@ def detect_invalid_dates(series, date_format=None):
         return pd.to_datetime(series, errors='coerce').isna()
     
 @log_function_call
+@track_changes
+
 def detect_errors(data, date_columns=None, numeric_columns=None, text_columns=None, date_format=None):
     """
     Detect and flag data entry errors in a DataFrame, including invalid dates and misspelled words.
@@ -595,6 +640,8 @@ def detect_errors(data, date_columns=None, numeric_columns=None, text_columns=No
 
 import pandas as pd
 @log_function_call
+@track_changes
+
 def convert_type(data, column=None):
     """
     Recommend and apply data type conversions for a given DataFrame or Series based on the analysis of each column's data.
@@ -693,6 +740,7 @@ def convert_type(data, column=None):
 import pandas as pd
 import numpy as np
 @log_function_call
+@track_changes
 
 def detect_outliers(data, method='iqr', threshold=1.5, columns=None, handle_missing=True):
     """
@@ -786,6 +834,7 @@ def detect_outliers(data, method='iqr', threshold=1.5, columns=None, handle_miss
 import re
 import pandas as pd
 @log_function_call
+@track_changes
 
 def remove_chars(df, columns, strip_all=False, custom_characters=None):
     """
@@ -833,6 +882,8 @@ def remove_chars(df, columns, strip_all=False, custom_characters=None):
 
 import pandas as pd
 @log_function_call
+@track_changes
+
 def reformat(df, target_column, reference_column):
     """
     Applies the data type and formatting from a reference column to a target column in the same DataFrame.
@@ -901,6 +952,8 @@ def reformat(df, target_column, reference_column):
 import pandas as pd
 import numpy as np
 @log_function_call
+@track_changes
+
 def scale_data(df, column_name, method='min-max'):
     """
     Scales the specified column in the DataFrame using the given scaling method.
@@ -944,4 +997,223 @@ def scale_data(df, column_name, method='min-max'):
     return df
 
 
+
+
+import os
+import pandas as pd
+
+# Define the path to the dataset relative to this script
+DATA_DIR = os.path.join(os.path.dirname(__file__), 'data', 'customer_sales_data.csv')
+@log_function_call
+def customer_sales_data():
+    """
+    Load the Customer Sales Data dataset.
+
+    This dataset includes simulated customer sales records with the following columns:
+    - CustomerID: Unique identifier for each customer.
+    - Age: Age of the customer (may include missing values and inconsistent formats).
+    - Gender: Gender of the customer (may include missing values).
+    - PurchaseHistory: List of previous purchases.
+    - ProductCategory: Category of the purchased product.
+    - PurchaseDate: Date of the purchase (may include inconsistent formats).
+    - AmountSpent: Total amount spent on the purchase (includes outliers).
+    - PaymentMethod: Method of payment used (includes mixed data types).
+    - Country: Country of the customer.
+    - MembershipStatus: Membership status (may include missing values).
+    - PhoneNumber: Phone number of the customer (includes various formats).
+    - DiscountCode: Discount code applied (includes duplicates).
+
+    The dataset is stored in a CSV file located in the 'data' folder within the project directory.
+
+    Returns:
+        pandas.DataFrame: A DataFrame containing the Customer Sales Data.
+    """
+    # Check if the dataset file exists
+    if not os.path.isfile(DATA_DIR):
+        raise FileNotFoundError(f"The dataset file at {DATA_DIR} does not exist.")
+    
+    # Load the dataset using pandas
+    df = pd.read_csv(DATA_DIR)
+    return df
+
+
+
+import pandas as pd
+
+# Expanded unit conversion mappings
+default_unit_conversion_factors = {
+    'length': {
+        'mm': 0.001,
+        'cm': 0.01,
+        'm': 1,
+        'km': 1000,
+        'in': 0.0254,
+        'ft': 0.3048,
+        'yd': 0.9144,
+        'mi': 1609.34,
+        'nmi': 1852,  # Nautical Mile
+        'fathom': 1.8288  # Fathom
+    },
+    'mass': {
+        'mg': 1e-6,
+        'g': 0.001,
+        'kg': 1,
+        'ton': 1000,
+        'lb': 0.453592,
+        'oz': 0.0283495,
+        'stone': 6.35029,
+        'grain': 6.479891e-5  # Grain
+    },
+    'time': {
+        's': 1,
+        'min': 60,
+        'h': 3600,
+        'day': 86400,
+        'week': 604800,
+        'month': 2628000,  # Average month (30.44 days)
+        'year': 31536000  # Average year
+    },
+    'volume': {
+        'ml': 0.001,
+        'l': 1,
+        'm3': 1000,
+        'ft3': 28.3168,
+        'gal': 3.78541,
+        'pt': 0.473176,  # Pint
+        'qt': 0.946353,  # Quart
+        'cup': 0.24  # Cup
+    },
+    'temperature': {
+        'C': ('C', lambda x: x),  # Celsius to Celsius
+        'F': ('C', lambda f: (f - 32) * 5.0 / 9.0),  # Fahrenheit to Celsius
+        'K': ('C', lambda k: k - 273.15)  # Kelvin to Celsius
+    },
+    'speed': {
+        'm/s': 1,
+        'km/h': 0.277778,
+        'mph': 0.44704,
+        'knot': 0.514444  # Knot
+    },
+    'energy': {
+        'J': 1,
+        'kJ': 1000,
+        'cal': 4.184,
+        'kcal': 4184,
+        'kWh': 3.6e+6
+    },
+    'area': {
+        'm2': 1,
+        'km2': 1e+6,
+        'ft2': 0.092903,
+        'ac': 4046.86,  # Acre
+        'ha': 10000  # Hectare
+    },
+    'pressure': {
+        'Pa': 1,
+        'bar': 1e+5,
+        'atm': 101325,
+        'psi': 6894.76
+    }
+}
+
+# Temperature conversion helper functions
+def temperature_to_celsius(value, from_unit):
+    """ Convert any temperature unit to Celsius """
+    if from_unit == 'C':
+        return value
+    elif from_unit == 'F':
+        return (value - 32) * 5.0 / 9.0
+    elif from_unit == 'K':
+        return value - 273.15
+    else:
+        raise ValueError(f"Unsupported temperature unit: {from_unit}")
+
+def celsius_to_target(value, to_unit):
+    """ Convert Celsius to the target temperature unit """
+    if to_unit == 'C':
+        return value
+    elif to_unit == 'F':
+        return (value * 9.0 / 5.0) + 32
+    elif to_unit == 'K':
+        return value + 273.15
+    else:
+        raise ValueError(f"Unsupported temperature unit: {to_unit}")
+
+def convert_temperature(value, from_unit, to_unit):
+    """ Convert between any two temperature units """
+    celsius_value = temperature_to_celsius(value, from_unit)
+    return celsius_to_target(celsius_value, to_unit)
+
+# General unit conversion function for length, mass, etc.
+def convert_to_base_unit(value, from_unit, to_unit, category):
+    """
+    Converts a value from the specified unit to the target unit.
+
+    Parameters:
+    - value: The numeric value to be converted.
+    - from_unit: The unit of the value (e.g., 'cm', 'm', 'kg').
+    - to_unit: The unit to which the value will be converted.
+    - category: The category of units (e.g., 'length', 'mass').
+
+    Returns:
+    - The converted value.
+    """
+    unit_conversion_factors = default_unit_conversion_factors.get(category, {})
+
+    if not unit_conversion_factors:
+        raise ValueError(f"Unsupported category: {category}. Please choose from available categories.")
+
+    # Handle temperature conversions separately
+    if category == 'temperature':
+        return convert_temperature(value, from_unit, to_unit)
+
+    # Handle predefined conversions for other categories
+    if from_unit not in unit_conversion_factors or to_unit not in unit_conversion_factors:
+        raise ValueError(f"Unsupported unit conversion from '{from_unit}' to '{to_unit}' in category '{category}'.")
+
+    conversion_factor = unit_conversion_factors[from_unit]
+    target_factor = unit_conversion_factors[to_unit]
+    return value * conversion_factor / target_factor
+
+@log_function_call
+@track_changes
+def convert_unit(df, column, unit_category, from_unit, to_unit):
+    """
+    Detects units in the specified column and converts them to the target unit.
+
+    Parameters:
+    - df (pd.DataFrame): The DataFrame containing the data.
+    - column (str): The column to check for unit conversion.
+    - unit_category (str): The category of units to convert (e.g., 'length', 'mass', 'volume').
+    - from_unit (str): The unit to convert from.
+    - to_unit (str): The unit to convert to.
+
+    Returns:
+    - pd.DataFrame: A new DataFrame with converted values.
+    """
+    # Validate inputs
+    if column not in df.columns:
+        raise ValueError(f"Column '{column}' does not exist in the DataFrame.")
+    if unit_category not in default_unit_conversion_factors:
+        raise ValueError(f"Unit category '{unit_category}' is not defined.")
+    if from_unit not in default_unit_conversion_factors.get(unit_category, {}):
+        raise ValueError(f"Invalid 'from_unit': {from_unit} for unit category '{unit_category}'.")
+    if to_unit not in default_unit_conversion_factors.get(unit_category, {}):
+        raise ValueError(f"Invalid 'to_unit': {to_unit} for unit category '{unit_category}'.")
+
+    # Copy DataFrame to avoid modifying the original
+    converted_data = df.copy()
+
+    for idx, value in converted_data[column].items():
+        if isinstance(value, (int, float)):
+            try:
+                converted_value = convert_to_base_unit(value, from_unit, to_unit, unit_category)
+                converted_data.at[idx, column] = converted_value
+            except ValueError as e:
+                print(f"Error converting value {value} in column '{column}': {e}")
+        else:
+            # Handle non-numeric values
+            print(f"Skipping non-numeric value in column '{column}': {value}")
+
+    return converted_data
 
