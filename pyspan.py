@@ -779,9 +779,6 @@ def detect_outliers(data, method='iqr', threshold=1.5, columns=None, handle_miss
     if columns is None:
         columns = data.select_dtypes(include=[np.number]).columns
 
-    # Initialize a boolean mask for outliers
-    outliers = pd.DataFrame(index=data.index, columns=columns, data=False)
-
     if method == 'z-score':
         for col in columns:
             if col not in data.columns:
@@ -789,11 +786,8 @@ def detect_outliers(data, method='iqr', threshold=1.5, columns=None, handle_miss
             
             mean = data[col].mean()
             std = data[col].std()
-
-            # Calculate Z-score
             z_scores = (data[col] - mean) / std
-            # Mark outliers
-            outliers[col] = np.abs(z_scores) > threshold
+            outliers = np.abs(z_scores) > threshold
 
     elif method == 'iqr':
         for col in columns:
@@ -803,32 +797,24 @@ def detect_outliers(data, method='iqr', threshold=1.5, columns=None, handle_miss
             Q1 = data[col].quantile(0.25)
             Q3 = data[col].quantile(0.75)
             IQR = Q3 - Q1
-
-            # Define outlier bounds
             lower_bound = Q1 - threshold * IQR
             upper_bound = Q3 + threshold * IQR
+            outliers = (data[col] < lower_bound) | (data[col] > upper_bound)
 
-            # Mark outliers
-            outliers[col] = (data[col] < lower_bound) | (data[col] > upper_bound)
+    # Count total number of outliers
+    num_outliers = np.sum(outliers)
+    print(f"Total number of outliers detected: {num_outliers}")
 
-    # Count the total number of outliers
-    total_outliers = outliers.sum().sum()
-    print(f"Total number of outliers detected: {total_outliers}")
+     # Remove outliers
+    data_cleaned = data[~outliers]
 
-    # Combine the outlier information with the original data
-    data_with_outliers = data.copy()
-    data_with_outliers['is_outlier'] = outliers.any(axis=1)
+    
+    # Print data shape before and after outlier removal
+    print(f"Original data shape: {data_original_shape}")
+    print(f"Data shape after removing outliers: {data_cleaned.shape}")
 
-    # If handle_missing is True, drop rows with any outliers and print shape before and after
-    if handle_missing:
-        data_cleaned = data_with_outliers[~data_with_outliers['is_outlier']].drop(columns='is_outlier')
-
-        print(f"Original data shape: {data_original_shape}")
-        print(f"Data shape after removing outliers: {data_cleaned.shape}")
-
-        return data_cleaned
-    else:
-        return data_with_outliers
+    return data_cleaned
+  
 
 
 import re
@@ -999,11 +985,9 @@ def scale_data(df, column_name, method='min-max'):
 
 
 
-import os
+import pkg_resources
 import pandas as pd
 
-# Define the path to the dataset relative to this script
-DATA_DIR = os.path.join(os.path.dirname(__file__), 'data', 'customer_sales_data.csv')
 @log_function_call
 def customer_sales_data():
     """
@@ -1023,17 +1007,16 @@ def customer_sales_data():
     - PhoneNumber: Phone number of the customer (includes various formats).
     - DiscountCode: Discount code applied (includes duplicates).
 
-    The dataset is stored in a CSV file located in the 'data' folder within the project directory.
+    The dataset is stored in a CSV file located in the 'data' folder within the package.
 
     Returns:
         pandas.DataFrame: A DataFrame containing the Customer Sales Data.
     """
-    # Check if the dataset file exists
-    if not os.path.isfile(DATA_DIR):
-        raise FileNotFoundError(f"The dataset file at {DATA_DIR} does not exist.")
-    
+    # Use pkg_resources to access the file within the package
+    data_path = pkg_resources.resource_filename('pyspan', 'data/customer_sales_data.csv')
+
     # Load the dataset using pandas
-    df = pd.read_csv(DATA_DIR)
+    df = pd.read_csv(data_path)
     return df
 
 
