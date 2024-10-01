@@ -380,12 +380,12 @@ def rename_dataframe_columns(df: pd.DataFrame, rename_dict: dict) -> pd.DataFram
 import pandas as pd
 import pytz
 from typing import Union, List, Optional
+
 @log_function_call
 @track_changes
-
 def format_dt(
     df: pd.DataFrame,
-    column_name: str,
+    columns: Union[str, List[str]],
     day: bool = False,
     month: bool = False,
     year: bool = False,
@@ -403,7 +403,7 @@ def format_dt(
     
     Parameters:
     - df (pd.DataFrame): The DataFrame to which new date/time features will be added and formatted.
-    - column_name (str): The name of the column containing date/time data.
+    - columns (str or List[str]): The name(s) of the column(s) containing date/time data.
     - day (bool): If True, add a column with the day of the month.
     - month (bool): If True, add a column with the month.
     - year (bool): If True, add a column with the year.
@@ -424,49 +424,54 @@ def format_dt(
     Raises:
     - ValueError: If the specified column does not exist in the DataFrame or conversion fails.
     """
-    # Check if the DataFrame contains the specified column
-    if column_name not in df.columns:
-        raise ValueError(f"Column '{column_name}' does not exist in the DataFrame.")
     
-    # Convert the column to datetime if it's not already
-    if not pd.api.types.is_datetime64_any_dtype(df[column_name]):
-        try:
-            df[column_name] = pd.to_datetime(df[column_name])
-        except Exception as e:
-            raise ValueError(f"Failed to convert column '{column_name}' to datetime. Error: {e}")
+    # Ensure columns is a list to handle both single and multiple columns
+    if isinstance(columns, str):
+        columns = [columns]
 
-    # Adding requested datetime features
-    if day:
-        df[f'{column_name}_day'] = df[column_name].dt.day
-    if month:
-        df[f'{column_name}_month'] = df[column_name].dt.month
-    if year:
-        df[f'{column_name}_year'] = df[column_name].dt.year
-    if quarter:
-        df[f'{column_name}_quarter'] = df[column_name].dt.quarter
-    if hour:
-        df[f'{column_name}_hour'] = df[column_name].dt.hour
-    if minute:
-        df[f'{column_name}_minute'] = df[column_name].dt.minute
-    if day_of_week:
-        df[f'{column_name}_day_of_week'] = df[column_name].dt.dayofweek
+    for column in columns:
+        # Check if the DataFrame contains the specified column
+        if column not in df.columns:
+            raise ValueError(f"Column '{column}' does not exist in the DataFrame.")
 
-    # Apply date and time format and timezone conversion
-    if from_timezone and to_timezone:
-        # Convert timezone if both from and to timezones are specified
-        df[column_name] = (
-            df[column_name]
-            .dt.tz_localize(from_timezone, ambiguous='NaT', nonexistent='NaT')
-            .dt.tz_convert(to_timezone)
-        )
-    elif from_timezone or to_timezone:
-        raise ValueError("Both from_timezone and to_timezone must be specified for timezone conversion.")
+        # Convert the column to datetime if it's not already
+        if not pd.api.types.is_datetime64_any_dtype(df[column]):
+            try:
+                df[column] = pd.to_datetime(df[column])
+            except Exception as e:
+                raise ValueError(f"Failed to convert column '{column}' to datetime. Error: {e}")
 
-    # Apply date and time format
-    df[column_name] = df[column_name].dt.strftime(f"{date_format} {time_format}")
+        # Adding requested datetime features
+        if day:
+            df[f'{column}_day'] = df[column].dt.day
+        if month:
+            df[f'{column}_month'] = df[column].dt.month
+        if year:
+            df[f'{column}_year'] = df[column].dt.year
+        if quarter:
+            df[f'{column}_quarter'] = df[column].dt.quarter
+        if hour:
+            df[f'{column}_hour'] = df[column].dt.hour
+        if minute:
+            df[f'{column}_minute'] = df[column].dt.minute
+        if day_of_week:
+            df[f'{column}_day_of_week'] = df[column].dt.dayofweek
+
+        # Apply date and time format and timezone conversion
+        if from_timezone and to_timezone:
+            # Convert timezone if both from and to timezones are specified
+            df[column] = (
+                df[column]
+                .dt.tz_localize(from_timezone, ambiguous='NaT', nonexistent='NaT')
+                .dt.tz_convert(to_timezone)
+            )
+        elif from_timezone or to_timezone:
+            raise ValueError("Both from_timezone and to_timezone must be specified for timezone conversion.")
+
+        # Apply date and time format
+        df[column] = df[column].dt.strftime(f"{date_format} {time_format}")
 
     return df
-
 
 
 
@@ -937,48 +942,52 @@ def reformat(df, target_column, reference_column):
 
 import pandas as pd
 import numpy as np
+
 @log_function_call
 @track_changes
-
-def scale_data(df, column_name, method='min-max'):
+def scale_data(df, columns, method='min-max'):
     """
-    Scales the specified column in the DataFrame using the given scaling method.
+    Scales the specified column(s) in the DataFrame using the given scaling method.
     
     Parameters:
     - df (pd.DataFrame): The DataFrame containing the data to scale.
-    - column_name (str): The name of the column to scale.
+    - columns (str or list): The name(s) of the column(s) to scale.
     - method (str): The scaling method to use. Options are 'min-max', 'robust', and 'standard'.
     
     Returns:
-    - pd.DataFrame: The DataFrame with the specified column scaled.
+    - pd.DataFrame: The DataFrame with the specified column(s) scaled.
     
     Raises:
     - ValueError: If the specified method is not recognized.
     """
     
-    if method == 'min-max':
-        # Min-Max Scaling
-        X = df[column_name]
-        X_min = X.min()
-        X_max = X.max()
-        df[column_name] = (X - X_min) / (X_max - X_min)
-        
-    elif method == 'robust':
-        # Robust Scaling
-        X = df[column_name]
-        median = X.median()
-        IQR = X.quantile(0.75) - X.quantile(0.25)
-        df[column_name] = (X - median) / IQR
-        
-    elif method == 'standard':
-        # Standard Scaling
-        X = df[column_name]
-        mean = X.mean()
-        std = X.std()
-        df[column_name] = (X - mean) / std
-        
-    else:
-        raise ValueError(f"Scaling method '{method}' is not recognized. Choose from 'min-max', 'robust', or 'standard'.")
+    if isinstance(columns, str):
+        columns = [columns]
+    
+    for column in columns:
+        if method == 'min-max':
+            # Min-Max Scaling
+            X = df[column]
+            X_min = X.min()
+            X_max = X.max()
+            df[column] = (X - X_min) / (X_max - X_min)
+
+        elif method == 'robust':
+            # Robust Scaling
+            X = df[column]
+            median = X.median()
+            IQR = X.quantile(0.75) - X.quantile(0.25)
+            df[column] = (X - median) / IQR
+
+        elif method == 'standard':
+            # Standard Scaling
+            X = df[column]
+            mean = X.mean()
+            std = X.std()
+            df[column] = (X - mean) / std
+
+        else:
+            raise ValueError(f"Scaling method '{method}' is not recognized. Choose from 'min-max', 'robust', or 'standard'.")
     
     return df
 

@@ -136,7 +136,7 @@ Adds additional date/time-based columns to a DataFrame and formats date/time col
 - **`df`** (`pd.DataFrame`):  
   DataFrame to which new date/time features will be added.
 
-- **`column_name`** (`str`):  
+- **`columns`** (`str`):  
   The name of the column containing date/time data.
 
 - **`add_day`** (`bool`, default: `False`):  
@@ -483,7 +483,7 @@ df_renamed_dict = rename_dataframe_columns(df, rename_dict)
 
 # Example usage of format_dt
 # Apply the function to add features and format the 'timestamp' column
-processed_df = format_dt(df, column_name='timestamp', day=True, month=True, year=True, quarter=True,
+processed_df = format_dt(df, columns='timestamp', day=True, month=True, year=True, quarter=True,
                           hour=True, minute=True, day_of_week=True, date_format="%d-%m-%Y",
                           time_format="%I:%M %p", from_timezone='UTC', to_timezone='America/New_York')
 
