@@ -747,75 +747,76 @@ import numpy as np
 @log_function_call
 @track_changes
 
-def detect_outliers(data, method='iqr', threshold=1.5, columns=None, handle_missing=True):
+def detect_outliers(
+    data,
+    columns,
+    method='iqr',
+    threshold=1.5,
+    handle_missing=True
+):
     """
-    Detect outliers in a dataset using the specified method and threshold.
+    Detects outliers in one or multiple specified columns using IQR or Z-Score methods.
 
     Parameters:
-    data (Union[pd.Series, pd.DataFrame]): The input data to analyze.
-    method (str, default='iqr'): The outlier detection method to use. Options include 'z-score' and 'iqr'.
-    threshold (float, default=1.5): The threshold for outlier detection.
-    columns (List[str], optional): List of columns to apply the outlier detection on. If None, applies to all numerical columns.
-    handle_missing (bool, default=True): Whether to drop rows with outliers and print the shape of the data before and after.
+    - data (pd.DataFrame): The DataFrame containing the data.
+    - columns (str or list): The column name or list of column names where outliers should be detected.
+    - method (str): The method to use ('iqr' for Interquartile Range or 'z-score' for Z-Score). Default is 'iqr'.
+    - threshold (float): The threshold for outlier detection. Default is 1.5 for IQR and 3 for Z-Score.
+    - handle_missing (bool): If True, it will handle missing values by removing rows with missing data.
 
     Returns:
-    pd.DataFrame: A DataFrame with an additional boolean column 'is_outlier' or the cleaned DataFrame.
+    - pd.DataFrame: A DataFrame with outliers removed and the data shape before and after removal printed.
     """
+    
+    # Convert single column input to list
+    if isinstance(columns, str):
+        columns = [columns]
 
-    # Validate input
-    if not isinstance(data, (pd.Series, pd.DataFrame)):
-        raise TypeError("Data must be a pandas DataFrame or Series.")
+    # Validate input columns
+    for col in columns:
+        if col not in data.columns:
+            raise ValueError(f"Column '{col}' not found in the DataFrame.")
 
-    if not isinstance(threshold, (int, float)):
-        raise TypeError("Threshold must be a numeric value.")
-
-    if method not in ['z-score', 'iqr']:
-        raise ValueError("Method must be one of ['z-score', 'iqr'].")
-
-    if isinstance(data, pd.Series):
-        data = data.to_frame()
+    if method not in ['iqr', 'z-score']:
+        raise ValueError("Method must be one of ['iqr', 'z-score'].")
 
     # Handle missing values
-    data_original_shape = data.shape
+    original_shape = data.shape
     if handle_missing:
-        data = data.dropna()
+        data = data.dropna(subset=columns)
 
-    # Select numerical columns if columns is None
-    if columns is None:
-        columns = data.select_dtypes(include=[np.number]).columns
+    outliers_combined = np.zeros(len(data), dtype=bool)
 
-    if method == 'z-score':
-        for col in columns:
-            if col not in data.columns:
-                raise ValueError(f"Column {col} is not in the DataFrame.")
-            
-            mean = data[col].mean()
-            std = data[col].std()
-            z_scores = (data[col] - mean) / std
-            outliers = np.abs(z_scores) > threshold
-
-    elif method == 'iqr':
-        for col in columns:
-            if col not in data.columns:
-                raise ValueError(f"Column {col} is not in the DataFrame.")
-
-            Q1 = data[col].quantile(0.25)
-            Q3 = data[col].quantile(0.75)
+    for column in columns:
+        # Detect outliers based on the selected method
+        if method == 'iqr':
+            # IQR Method
+            Q1 = data[column].quantile(0.25)
+            Q3 = data[column].quantile(0.75)
             IQR = Q3 - Q1
             lower_bound = Q1 - threshold * IQR
             upper_bound = Q3 + threshold * IQR
-            outliers = (data[col] < lower_bound) | (data[col] > upper_bound)
+            outliers = (data[column] < lower_bound) | (data[column] > upper_bound)
+
+        elif method == 'z-score':
+            # Z-Score Method
+            mean = data[column].mean()
+            std = data[column].std()
+            z_scores = (data[column] - mean) / std
+            outliers = np.abs(z_scores) > threshold
+
+        # Combine outliers from all columns
+        outliers_combined |= outliers
 
     # Count total number of outliers
-    num_outliers = np.sum(outliers)
-    print(f"Total number of outliers detected: {num_outliers}")
+    num_outliers = np.sum(outliers_combined)
+    print(f"Total number of outliers detected across columns: {num_outliers}")
 
-     # Remove outliers
-    data_cleaned = data[~outliers]
+    # Remove outliers
+    data_cleaned = data[~outliers_combined]
 
-    
     # Print data shape before and after outlier removal
-    print(f"Original data shape: {data_original_shape}")
+    print(f"Original data shape: {original_shape}")
     print(f"Data shape after removing outliers: {data_cleaned.shape}")
 
     return data_cleaned
