@@ -139,25 +139,25 @@ Adds additional date/time-based columns to a DataFrame and formats date/time col
 - **`columns`** (`str`):  
   The name of the column containing date/time data.
 
-- **`add_day`** (`bool`, default: `False`):  
+- **`day`** (`bool`, default: `False`):  
   If `True`, adds a column with the day of the month.
 
-- **`add_month`** (`bool`, default: `False`):  
+- **`month`** (`bool`, default: `False`):  
   If `True`, adds a column with the month.
 
-- **`add_year`** (`bool`, default: `False`):  
+- **`year`** (`bool`, default: `False`):  
   If `True`, adds a column with the year.
 
-- **`add_quarter`** (`bool`, default: `False`):  
+- **`quarter`** (`bool`, default: `False`):  
   If `True`, adds a column with the quarter of the year.
 
-- **`add_hour`** (`bool`, default: `False`):  
+- **`hour`** (`bool`, default: `False`):  
   If `True`, adds a column with the hour of the day.
 
-- **`add_minute`** (`bool`, default: `False`):  
+- **`minute`** (`bool`, default: `False`):  
   If `True`, adds a column with the minute of the hour.
 
-- **`add_day_of_week`** (`bool`, default: `False`):  
+- **`day_of_week`** (`bool`, default: `False`):  
   If `True`, adds a column with the day of the week (0=Monday, 6=Sunday).
 
 - **`date_format`** (`str`, default: `"%Y-%m-%d"`):  
