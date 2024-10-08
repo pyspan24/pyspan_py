@@ -1,20 +1,45 @@
 import inspect
 import logging
+import functools
 
 # Store logs in a list for retrieval
 log_entries = []
 
 def log_function_call(func):
+    @functools.wraps(func)  # This line preserves the original function's metadata
     def wrapper(*args, **kwargs):
-        # Get the name of the calling function
-        caller = inspect.stack()[1]
-        caller_function = caller.function
-        caller_file = caller.filename
+        # Get the arguments passed to the decorated function (args and kwargs)
+        arg_names = inspect.getfullargspec(func).args
+        arg_vals = args[:len(arg_names)]  # Positional arguments
+        kwarg_vals = kwargs  # Keyword arguments
 
-        # Create a log entry
-        log_entry = f'Function "{func.__name__}" was called from "{caller_function}" in file "{caller_file}".'
-        log_entries.append(log_entry)
+        # Prepare a readable argument list, handling large objects (like DataFrames)
+        def readable_repr(val):
+            if isinstance(val, pd.DataFrame):
+                return f'<DataFrame: {val.shape[0]} rows x {val.shape[1]} columns>'
+            return val
+
+        # Combine args and kwargs into a readable string
+        arg_repr = ', '.join(f'{name}={readable_repr(val)}' for name, val in zip(arg_names, arg_vals))
+        kwarg_repr = ', '.join(f'{key}={readable_repr(value)}' for key, value in kwarg_vals.items())
+
+        # If no arguments are passed
+        all_args_repr = f'{arg_repr}, {kwarg_repr}'.strip(', ')
+
+        if not all_args_repr:
+            all_args_repr = 'None'  # Show "None" if no arguments are passed
         
+        # Get the calling line number
+        caller_info = inspect.stack()[1]
+        line_number = caller_info.lineno
+
+        # Create a human-readable log entry with line number
+        log_entry = f'Function "{func.__name__}" was called at line {line_number} with parameters: {all_args_repr}.'
+        
+        # Check for duplicates before appending
+        if log_entry not in log_entries:
+            log_entries.append(log_entry)
+
         # Optionally also log to a file
         logging.info(log_entry)
         
@@ -27,6 +52,10 @@ def display_logs():
     else:
         for entry in log_entries:
             print(entry)
+
+
+
+
 
 
 
@@ -58,6 +87,7 @@ def undo():
 
 # Decorator to track changes and save the previous state
 def track_changes(func):
+    @functools.wraps(func)  # Add this line
     def wrapper(df, *args, **kwargs):
         save_state(df)  # Save the current state of the DataFrame
         result = func(df, *args, **kwargs)
@@ -65,6 +95,11 @@ def track_changes(func):
         _df = result
         return result
     return wrapper
+
+
+
+
+
 
 import pandas as pd
 from typing import Optional, Union, List
@@ -346,7 +381,7 @@ import pandas as pd
 @log_function_call
 @track_changes
 
-def rename_dataframe_columns(df: pd.DataFrame, rename_dict: dict) -> pd.DataFrame:
+def manual_rename_columns(df: pd.DataFrame, rename_dict: dict) -> pd.DataFrame:
     """
     Rename columns in a DataFrame using a provided dictionary mapping.
 
@@ -410,7 +445,7 @@ def format_dt(
     - quarter (bool): If True, add a column with the quarter of the year.
     - hour (bool): If True, add a column with the hour of the day.
     - minute (bool): If True, add a column with the minute of the hour.
-    - day_of_week (bool): If True, add a column with the day of the week (0=Monday, 6=Sunday).
+    - day_of_week (bool): If True, add a column with the day of the week as a string (e.g., 'Monday').
     - date_format (str): The desired date format (default: "%Y-%m-%d").
     - time_format (str): The desired time format (default: "%H:%M:%S").
     - from_timezone (Optional[str]): The original timezone of the datetime column(s).
@@ -455,7 +490,7 @@ def format_dt(
         if minute:
             df[f'{column}_minute'] = df[column].dt.minute
         if day_of_week:
-            df[f'{column}_day_of_week'] = df[column].dt.dayofweek
+            df[f'{column}_day_of_week'] = df[column].dt.day_name()  
 
         # Apply date and time format and timezone conversion
         if from_timezone and to_timezone:
@@ -644,27 +679,36 @@ def detect_errors(data, date_columns=None, numeric_columns=None, text_columns=No
 
 
 import pandas as pd
+from typing import Union, Optional, List
+
 @log_function_call
 @track_changes
-
-def convert_type(data, column=None):
+def convert_type(data: Union[pd.DataFrame, pd.Series], columns: Optional[Union[str, List[str]]] = None) -> Union[pd.DataFrame, pd.Series]:
     """
     Recommend and apply data type conversions for a given DataFrame or Series based on the analysis of each column's data.
 
     Parameters:
-    data (pd.DataFrame or pd.Series): The input data to analyze.
-    column (str or None): The specific column to analyze. If None, the function analyzes all columns.
+    - data (pd.DataFrame or pd.Series): The input data to analyze.
+    - columns (str, list of str, or None): The specific column(s) to analyze. If None, the function analyzes all columns.
 
     Returns:
-    pd.DataFrame or pd.Series: The data with applied type conversions.
+    - pd.DataFrame or pd.Series: The data with applied type conversions.
     """
     if not isinstance(data, (pd.DataFrame, pd.Series)):
         raise TypeError("Data must be a pandas DataFrame or Series.")
 
-    if column:
-        if column not in data.columns:
-            raise ValueError(f"Column {column} does not exist in the DataFrame.")
-        data = data[[column]]
+    # If a single column is provided as a string, convert it to a list
+    if isinstance(columns, str):
+        columns = [columns]
+
+    # If columns are provided, check if they exist in the DataFrame
+    if columns:
+        for column in columns:
+            if column not in data.columns:
+                raise ValueError(f"Column '{column}' does not exist in the DataFrame.")
+        data_to_analyze = data[columns]
+    else:
+        data_to_analyze = data
 
     recommendations = {}
 
@@ -825,16 +869,18 @@ def detect_outliers(
 
 import re
 import pandas as pd
+from typing import Union, List
+
 @log_function_call
 @track_changes
 
-def remove_chars(df, columns, strip_all=False, custom_characters=None):
+def remove_chars(df: pd.DataFrame, columns: Union[str, List[str]], strip_all=False, custom_characters=None) -> pd.DataFrame:
     """
     Cleans specified columns in a DataFrame by trimming spaces and optionally removing custom characters.
 
     Parameters:
     - df (pd.DataFrame): The DataFrame containing the columns to be cleaned.
-    - columns (list of str): A list of column names to apply the cleaning function to.
+    - columns (str or list of str): A column name or a list of column names to apply the cleaning function to.
     - strip_all (bool): If True, all extra spaces will be removed;
       otherwise, only leading, trailing, and extra spaces between words will be reduced to one.
     - custom_characters (str or None): A string of characters to be removed from the text.
@@ -863,8 +909,16 @@ def remove_chars(df, columns, strip_all=False, custom_characters=None):
         else:
             return text  # Return as is if it's not a string
 
-    # Apply the cleaning function to the specified columns
-    df[columns] = df[columns].map(clean_text)
+     # If a single column name is provided as a string, convert it to a list
+    if isinstance(columns, str):
+        columns = [columns]
+
+    # Apply the cleaning function to each specified column
+    for col in columns:
+        if col in df.columns:
+            df[col] = df[col].map(clean_text)
+        else:
+            raise ValueError(f"Column '{col}' does not exist in the DataFrame.")
 
     return df
 
@@ -999,7 +1053,7 @@ import pkg_resources
 import pandas as pd
 
 @log_function_call
-def customer_sales_data():
+def sample_data():
     """
     Load the Customer Sales Data dataset.
 
@@ -1170,13 +1224,13 @@ def convert_to_base_unit(value, from_unit, to_unit, category):
 
 @log_function_call
 @track_changes
-def convert_unit(df, column, unit_category, from_unit, to_unit):
+def convert_unit(df, columns, unit_category, from_unit, to_unit):
     """
-    Detects units in the specified column and converts them to the target unit.
+    Detects units in the specified columns and converts them to the target unit.
 
     Parameters:
     - df (pd.DataFrame): The DataFrame containing the data.
-    - column (str): The column to check for unit conversion.
+    - columns (str or list): The column(s) to check for unit conversion.
     - unit_category (str): The category of units to convert (e.g., 'length', 'mass', 'volume').
     - from_unit (str): The unit to convert from.
     - to_unit (str): The unit to convert to.
@@ -1184,29 +1238,35 @@ def convert_unit(df, column, unit_category, from_unit, to_unit):
     Returns:
     - pd.DataFrame: A new DataFrame with converted values.
     """
+    # Ensure columns is a list, even if a single string is passed
+    if isinstance(columns, str):
+        columns = [columns]
+
     # Validate inputs
-    if column not in df.columns:
-        raise ValueError(f"Column '{column}' does not exist in the DataFrame.")
-    if unit_category not in default_unit_conversion_factors:
-        raise ValueError(f"Unit category '{unit_category}' is not defined.")
-    if from_unit not in default_unit_conversion_factors.get(unit_category, {}):
-        raise ValueError(f"Invalid 'from_unit': {from_unit} for unit category '{unit_category}'.")
-    if to_unit not in default_unit_conversion_factors.get(unit_category, {}):
-        raise ValueError(f"Invalid 'to_unit': {to_unit} for unit category '{unit_category}'.")
+    for column in columns:
+        if column not in df.columns:
+            raise ValueError(f"Column '{column}' does not exist in the DataFrame.")
+        if unit_category not in default_unit_conversion_factors:
+            raise ValueError(f"Unit category '{unit_category}' is not defined.")
+        if from_unit not in default_unit_conversion_factors.get(unit_category, {}):
+            raise ValueError(f"Invalid 'from_unit': {from_unit} for unit category '{unit_category}'.")
+        if to_unit not in default_unit_conversion_factors.get(unit_category, {}):
+            raise ValueError(f"Invalid 'to_unit': {to_unit} for unit category '{unit_category}'.")
 
     # Copy DataFrame to avoid modifying the original
     converted_data = df.copy()
 
-    for idx, value in converted_data[column].items():
-        if isinstance(value, (int, float)):
-            try:
-                converted_value = convert_to_base_unit(value, from_unit, to_unit, unit_category)
-                converted_data.at[idx, column] = converted_value
-            except ValueError as e:
-                print(f"Error converting value {value} in column '{column}': {e}")
-        else:
-            # Handle non-numeric values
-            print(f"Skipping non-numeric value in column '{column}': {value}")
+    for column in columns:
+        for idx, value in converted_data[column].items():
+            if isinstance(value, (int, float)):
+                try:
+                    converted_value = convert_to_base_unit(value, from_unit, to_unit, unit_category)
+                    converted_data.at[idx, column] = converted_value
+                except ValueError as e:
+                    print(f"Error converting value {value} in column '{column}': {e}")
+            else:
+                # Handle non-numeric values
+                print(f"Skipping non-numeric value in column '{column}': {value}")
 
     return converted_data
 

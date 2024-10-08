@@ -108,7 +108,7 @@ Automatically renames columns to remove spaces and special characters.
 
 ---
 
-## 4. `rename_dataframe_columns`
+## 4. `manual_rename_columns`
 
 **Description**  
 Renames columns in a DataFrame using a provided dictionary mapping.
@@ -158,7 +158,7 @@ Adds additional date/time-based columns to a DataFrame and formats date/time col
   If `True`, adds a column with the minute of the hour.
 
 - **`day_of_week`** (`bool`, default: `False`):  
-  If `True`, adds a column with the day of the week (0=Monday, 6=Sunday).
+  If `True`, adds a column with the day of the week (i.e Monday, Sunday).
 
 - **`date_format`** (`str`, default: `"%Y-%m-%d"`):  
   Desired date format.
@@ -235,7 +235,7 @@ Recommends and applies data type conversions based on the analysis of each colum
 - **`data`** (`pd.DataFrame` or `pd.Series`):  
   DataFrame or Series to analyze.
 
-- **`column`** (`Optional[str]`, default: `None`):  
+- **`columns`** (`Optional[List[str]]`, default: `None`):  
   Specific column to analyze (optional).
 
 **Returns:**  
@@ -277,7 +277,7 @@ Detects outliers in a dataset using specified methods and thresholds.
 ### `display_logs`
 
 **Description**  
-Prints stored log entries.
+Display all used functions details log enteries.
 
 **Returns:**  
 - `None`
@@ -294,7 +294,7 @@ Cleans and formats text in specified columns of a DataFrame by trimming spaces a
 - **`df`** (`pd.DataFrame`):  
   The DataFrame containing the columns to be cleaned.
 
-- **`columns`** (`List[str]`):  
+- **`columns`** (`Optional[List[str]]`):  
   List of column names to apply the cleaning function.
 
 - **`strip_all`** (`bool`, default: `False`):  
@@ -374,10 +374,10 @@ If no changes have been made, undo will print a message saying there are no rece
 
 ---
 
-## 15. `customer_sales_data`
+## 15. `sample_data`
 
 **Description**
-Loads the Customer Sales Data, a simulated dataset containing various customer sales records. This dataset includes columns with missing values, inconsistent formats, and outliers, providing an opportunity for data cleaning and manipulation.
+Loads the sample_data, a dataset containing various customer sales records. This dataset includes columns with missing values, inconsistent formats, and outliers, providing an opportunity for data cleaning and manipulation.
 
 **Parameters:**
 This function does not take any parameters.
@@ -413,8 +413,8 @@ The convert_unit function is designed to detect and convert units within a speci
 - **`df`** (`pd.DataFrame`):  
 The DataFrame containing the data for unit conversion.
 
--**`column`** (`str`):
-The name of the column where unit conversion should be applied.
+-**`columns`** (`Optional[List[str]]`):
+The name of the columns where unit conversion should be applied.
 
 -**`unit_category`** (`str`):
 The category of units for conversion (e.g., 'length', 'mass', 'temperature').
