@@ -112,10 +112,13 @@ def handle_nulls(
     action: str = 'remove',
     with_val: Optional[Union[int, float, str]] = None,
     by: Optional[str] = None,
-    inplace: bool = False
+    inplace: bool = False,
+    threshold: Optional[float] = None,
+    axis: str = 'rows'
 ) -> Optional[pd.DataFrame]:
     """
-    Handle null values in a DataFrame by removing, replacing, or imputing them.
+    Handle null values in a DataFrame by removing, replacing, imputing, or dropping rows/columns
+    with more than x% missing values.
 
     Parameters:
     - df (pd.DataFrame): The input DataFrame.
@@ -128,6 +131,8 @@ def handle_nulls(
     - by (Optional[str]): Strategy to use for imputing nulls ('mean', 'median', 'mode', etc.).
       Required if action is 'impute'.
     - inplace (bool): If True, modify the DataFrame in place. If False, return a new DataFrame. Default is False.
+    - threshold (Optional[float]): Percentage of missing values (0-100) allowed. If exceeded, drop the row/column.
+    - axis (str): Specify whether to apply the threshold to 'rows' or 'columns'. Default is 'rows'.
 
     Returns:
     - Optional[pd.DataFrame]: DataFrame with null values handled according to specified action, or None if inplace=True.
@@ -136,18 +141,16 @@ def handle_nulls(
     if not isinstance(df, pd.DataFrame):
         raise TypeError("The 'df' parameter must be a pandas DataFrame.")
 
-    # Check if 'with_val' is provided without 'replace' action
-    if with_val is not None and action != 'replace':
-        raise ValueError("The 'with_val' parameter can only be used when the 'action' is 'replace'.")
+    # Validate axis parameter
+    if axis not in ['rows', 'columns']:
+        raise ValueError("The 'axis' parameter must be either 'rows' or 'columns'.")
 
-    # Check if 'by' is provided without 'impute' action
-    if by is not None and action != 'impute':
-        raise ValueError("The 'by' parameter can only be used when the 'action' is 'impute'.")
+    # Validate threshold
+    if threshold is not None:
+        if not (0 <= threshold <= 100):
+            raise ValueError("The 'threshold' parameter must be between 0 and 100.")
 
-    # Check if 'impute' action is selected but 'by' is not provided
-    if action == 'impute' and by is None:
-        raise ValueError("An impute strategy must be provided when action is 'impute'.")
-
+    # Handle missing columns parameter
     if columns is not None:
         if isinstance(columns, str):
             columns = [columns]
@@ -155,28 +158,36 @@ def handle_nulls(
     else:
         subset_df = df
 
-    if action == 'remove':
-        df_cleaned = df.dropna(subset=subset_df.columns)
-    elif action == 'replace':
-        if with_val is None:
-            raise ValueError("A value must be provided when action is 'replace'.")
-        df_cleaned = df.fillna({col: with_val for col in subset_df.columns})
-    elif action == 'impute':
-        strategies = {
-            'mean': lambda col: col.fillna(col.mean()),
-            'median': lambda col: col.fillna(col.median()),
-            'mode': lambda col: col.fillna(col.mode().iloc[0] if not col.mode().empty else col),
-            'interpolate': lambda col: col.interpolate(),
-            'forward_fill': lambda col: col.ffill(),
-            'backward_fill': lambda col: col.bfill()
-        }
-        if by not in strategies:
-            raise ValueError("Invalid impute strategy. Use one of ['mean', 'median', 'mode', 'interpolate', 'forward_fill', 'backward_fill'].")
-        df_cleaned = df.copy()
-        for col in subset_df.columns:
-            df_cleaned[col] = strategies[by](df_cleaned[col])
+    # Drop rows/columns based on threshold
+    if threshold is not None:
+        if axis == 'rows':
+            df_cleaned = df.dropna(thresh=int((1 - threshold / 100) * df.shape[1]), axis=0)
+        elif axis == 'columns':
+            df_cleaned = df.dropna(thresh=int((1 - threshold / 100) * df.shape[0]), axis=1)
     else:
-        raise ValueError("Action must be either 'remove', 'replace', or 'impute'.")
+        # Process according to action (remove, replace, impute)
+        if action == 'remove':
+            df_cleaned = df.dropna(subset=subset_df.columns)
+        elif action == 'replace':
+            if with_val is None:
+                raise ValueError("A value must be provided when action is 'replace'.")
+            df_cleaned = df.fillna({col: with_val for col in subset_df.columns})
+        elif action == 'impute':
+            strategies = {
+                'mean': lambda col: col.fillna(col.mean()),
+                'median': lambda col: col.fillna(col.median()),
+                'mode': lambda col: col.fillna(col.mode().iloc[0] if not col.mode().empty else col),
+                'interpolate': lambda col: col.interpolate(),
+                'forward_fill': lambda col: col.ffill(),
+                'backward_fill': lambda col: col.bfill()
+            }
+            if by not in strategies:
+                raise ValueError("Invalid impute strategy. Use one of ['mean', 'median', 'mode', 'interpolate', 'forward_fill', 'backward_fill'].")
+            df_cleaned = df.copy()
+            for col in subset_df.columns:
+                df_cleaned[col] = strategies[by](df_cleaned[col])
+        else:
+            raise ValueError("Action must be either 'remove', 'replace', or 'impute'.")
 
     if inplace:
         df.update(df_cleaned)
@@ -288,6 +299,29 @@ import pandas as pd
 import re
 from spellchecker import SpellChecker
 
+def clean_text(text: str) -> str:
+    """
+    Cleans text by removing special characters, correcting spelling, and removing extra spaces.
+
+    Parameters:
+    - text (str): The original text to clean.
+
+    Returns:
+    - str: The cleaned text.
+    """
+    # Initialize spell checker
+    spell = SpellChecker()
+
+    # Remove special characters and replace them with spaces
+    clean_text = re.sub(r'[^a-zA-Z0-9 ]', ' ', text)
+
+    # Correct spelling of words
+    words = clean_text.split()
+    corrected_words = [spell.correction(word) for word in words]
+
+    # Join words with single spaces and strip leading/trailing spaces
+    return ' '.join(corrected_words).strip()
+
 def clean_column_name(column_name: str) -> str:
     """
     Cleans and recommends a new column name by correcting spelling and removing special characters.
@@ -298,19 +332,22 @@ def clean_column_name(column_name: str) -> str:
     Returns:
     - str: The recommended clean column name.
     """
-    # Initialize spell checker
-    spell = SpellChecker()
+    # Reuse the clean_text function for column names
+    return clean_text(column_name).title()
 
-    # Remove special characters and replace them with spaces
-    clean_name = re.sub(r'[^a-zA-Z0-9 ]', ' ', column_name)
+def clean_row_data(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Cleans the rows of a DataFrame by removing special characters and extra spaces.
 
-    # Correct spelling of words
-    words = clean_name.split()
-    corrected_words = [spell.correction(word) for word in words]
+    Parameters:
+    - df (pd.DataFrame): The DataFrame to clean.
 
-    # Join words with spaces and convert to title case
-    recommended_name = ' '.join(corrected_words).title()
-    return recommended_name
+    Returns:
+    - pd.DataFrame: The cleaned DataFrame with cleaned row data.
+    """
+    # Apply clean_text function to each cell in the DataFrame
+    df_cleaned = df.map(lambda x: clean_text(str(x)) if isinstance(x, str) else x)
+    return df_cleaned
 
 def rename_columns(df: pd.DataFrame) -> dict:
     """
@@ -323,13 +360,14 @@ def rename_columns(df: pd.DataFrame) -> dict:
     - dict: A dictionary where keys are current column names and values are recommended new names.
     """
     recommendations = {}
-    
+
     for column in df.columns:
         recommended_name = clean_column_name(column)
         if recommended_name != column:
             recommendations[column] = recommended_name
 
     return recommendations
+
 def apply_column_renames(df: pd.DataFrame, rename_map: dict) -> None:
     """
     Apply the recommended column name changes to the DataFrame.
@@ -341,37 +379,51 @@ def apply_column_renames(df: pd.DataFrame, rename_map: dict) -> None:
     if rename_map:
         df.rename(columns=rename_map, inplace=True)
 
+# Refined function
 @log_function_call
 @track_changes
-
-def auto_rename_columns(df: pd.DataFrame) -> None:
+def refine(df: pd.DataFrame, clean_rows: bool = True) -> pd.DataFrame:
     """
-    Provide an interactive prompt for users to apply recommended column renaming.
+    Refines the DataFrame by cleaning both column names and optionally row data.
 
     Parameters:
-    - df (pd.DataFrame): The DataFrame whose columns will be analyzed and potentially renamed.
+    - df (pd.DataFrame): The DataFrame to refine.
+    - clean_rows (bool): Whether to clean the row data as well as the column names. Default is True.
+
+    Returns:
+    - pd.DataFrame: The refined DataFrame.
     """
     # Get column rename recommendations
     rename_recommendations = rename_columns(df)
 
     if not rename_recommendations:
         print("All column names are already clean and readable!")
-        return
-
-    # Print recommendations
-    print("\nRecommended Column Renames:")
-    for original, recommended in rename_recommendations.items():
-        print(f"Original: {original}, Recommended: {recommended}")
-
-    # Ask the user if they want to apply the changes
-    apply_changes = input("\nDo you want to apply these changes? (yes/no): ").strip().lower()
-    if apply_changes == 'yes':
-        apply_column_renames(df, rename_recommendations)
-        print("\nRenamed DataFrame Column Names:")
-        print(df.columns)
     else:
-        print("\nNo changes were made.")
+        # Print recommendations
+        print("\nRecommended Column Renames:")
+        for original, recommended in rename_recommendations.items():
+            print(f"Original: {original}, Recommended: {recommended}")
 
+        # Ask the user if they want to apply the changes
+        apply_changes = input("\nDo you want to apply these column name changes? (yes/no): ").strip().lower()
+        if apply_changes == 'yes':
+            apply_column_renames(df, rename_recommendations)
+            print("\nRenamed DataFrame Column Names:")
+            print(df.columns)
+        else:
+            print("\nNo changes were made to column names.")
+
+    # Clean rows if specified
+    if clean_rows:
+        # Ask the user if they want to clean the row data
+        clean_row_data_prompt = input("\nDo you want to clean row data (remove special characters and extra spaces)? (yes/no): ").strip().lower()
+        if clean_row_data_prompt == 'yes':
+            df = clean_row_data(df)
+            print("\nRow data has been cleaned.")
+        else:
+            print("\nNo changes were made to row data.")
+
+    return df
 
 
 
@@ -788,83 +840,106 @@ def convert_type(data: Union[pd.DataFrame, pd.Series], columns: Optional[Union[s
 
 import pandas as pd
 import numpy as np
+from sklearn.ensemble import IsolationForest
+from sklearn.neighbors import LocalOutlierFactor
+from sklearn.cluster import DBSCAN
 @log_function_call
 @track_changes
+
 
 def detect_outliers(
     data,
     columns,
     method='iqr',
     threshold=1.5,
-    handle_missing=True
+    handle_missing=True,
+    anomaly_method=None,
+    contamination=0.05,
+    n_neighbors=20,
+    eps=0.5,
+    min_samples=5
 ):
     """
-    Detects outliers in one or multiple specified columns using IQR or Z-Score methods.
+    Detects outliers or anomalies in specified columns using IQR, Z-Score, or anomaly detection methods.
 
     Parameters:
     - data (pd.DataFrame): The DataFrame containing the data.
-    - columns (str or list): The column name or list of column names where outliers should be detected.
+    - columns (str or list): The column name or list of column names to detect outliers/anomalies.
     - method (str): The method to use ('iqr' for Interquartile Range or 'z-score' for Z-Score). Default is 'iqr'.
     - threshold (float): The threshold for outlier detection. Default is 1.5 for IQR and 3 for Z-Score.
-    - handle_missing (bool): If True, it will handle missing values by removing rows with missing data.
+    - handle_missing (bool): If True, handles missing values by removing rows with missing data.
+    - anomaly_method (str): Specify 'isolation_forest', 'lof', or 'dbscan' for anomaly detection methods.
+    - contamination (float): The proportion of anomalies for 'isolation_forest' and 'lof'. Default is 0.05.
+    - n_neighbors (int): Number of neighbors for LOF. Default is 20.
+    - eps (float): The maximum distance between samples for DBSCAN. Default is 0.5.
+    - min_samples (int): The minimum number of samples in a neighborhood for DBSCAN. Default is 5.
 
     Returns:
-    - pd.DataFrame: A DataFrame with outliers removed and the data shape before and after removal printed.
+    - pd.DataFrame: A DataFrame with outliers removed, and prints the data shape before and after removal.
     """
     
-    # Convert single column input to list
+    # Convert single column to list for uniform processing
     if isinstance(columns, str):
         columns = [columns]
 
-    # Validate input columns
-    for col in columns:
-        if col not in data.columns:
-            raise ValueError(f"Column '{col}' not found in the DataFrame.")
+    for column in columns:
+        if column not in data.columns:
+            raise ValueError(f"Column '{column}' not found in the DataFrame.")
 
-    if method not in ['iqr', 'z-score']:
-        raise ValueError("Method must be one of ['iqr', 'z-score'].")
+    if method not in ['iqr', 'z-score'] and anomaly_method not in ['isolation_forest', 'lof', 'dbscan', None]:
+        raise ValueError("Method must be one of ['iqr', 'z-score'] or a valid anomaly method ['isolation_forest', 'lof', 'dbscan'].")
 
     # Handle missing values
     original_shape = data.shape
     if handle_missing:
         data = data.dropna(subset=columns)
 
-    outliers_combined = np.zeros(len(data), dtype=bool)
+    # Initialize mask to identify outliers
+    combined_outliers = np.zeros(data.shape[0], dtype=bool)
 
     for column in columns:
-        # Detect outliers based on the selected method
-        if method == 'iqr':
-            # IQR Method
-            Q1 = data[column].quantile(0.25)
-            Q3 = data[column].quantile(0.75)
-            IQR = Q3 - Q1
-            lower_bound = Q1 - threshold * IQR
-            upper_bound = Q3 + threshold * IQR
-            outliers = (data[column] < lower_bound) | (data[column] > upper_bound)
+        if anomaly_method is None:
+            outlier_type = "outliers"
+            if method == 'iqr':
+                Q1 = data[column].quantile(0.25)
+                Q3 = data[column].quantile(0.75)
+                IQR = Q3 - Q1
+                lower_bound = Q1 - threshold * IQR
+                upper_bound = Q3 + threshold * IQR
+                outliers = (data[column] < lower_bound) | (data[column] > upper_bound)
 
-        elif method == 'z-score':
-            # Z-Score Method
-            mean = data[column].mean()
-            std = data[column].std()
-            z_scores = (data[column] - mean) / std
-            outliers = np.abs(z_scores) > threshold
+            elif method == 'z-score':
+                mean = data[column].mean()
+                std = data[column].std()
+                z_scores = (data[column] - mean) / std
+                outliers = np.abs(z_scores) > threshold
+        else:
+            outlier_type = "anomalies"
+            if anomaly_method == 'isolation_forest':
+                model = IsolationForest(contamination=contamination, random_state=42)
+                outliers = model.fit_predict(data[[column]]) == -1
+            elif anomaly_method == 'lof':
+                lof_model = LocalOutlierFactor(n_neighbors=n_neighbors, contamination=contamination)
+                outliers = lof_model.fit_predict(data[[column]]) == -1
+            elif anomaly_method == 'dbscan':
+                dbscan_model = DBSCAN(eps=eps, min_samples=min_samples)
+                outliers = dbscan_model.fit_predict(data[[column]]) == -1
+            else:
+                raise ValueError(f"Anomaly method '{anomaly_method}' is not supported.")
+        
+        combined_outliers |= outliers
 
-        # Combine outliers from all columns
-        outliers_combined |= outliers
+        num_outliers = np.sum(outliers)
+        print(f"Total number of {outlier_type} detected in column '{column}': {num_outliers}")
 
-    # Count total number of outliers
-    num_outliers = np.sum(outliers_combined)
-    print(f"Total number of outliers detected across columns: {num_outliers}")
-
-    # Remove outliers
-    data_cleaned = data[~outliers_combined]
+    # Remove all detected outliers
+    data_cleaned = data[~combined_outliers]
 
     # Print data shape before and after outlier removal
     print(f"Original data shape: {original_shape}")
-    print(f"Data shape after removing outliers: {data_cleaned.shape}")
+    print(f"Data shape after removing {outlier_type}: {data_cleaned.shape}")
 
     return data_cleaned
-  
 
 
 import re

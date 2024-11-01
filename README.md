@@ -17,7 +17,7 @@ pip install pyspan
 ## 1. `handle_nulls`
 
 **Description**  
-The `handle_nulls` function manages missing values within specified columns of a DataFrame using various strategies. You can choose to remove rows with null values, replace them with a custom value, or impute missing values using predefined strategies such as mean, median, or mode.
+The `handle_nulls` function handles missing values in a DataFrame by offering several options: removing rows or columns with nulls, replacing nulls with a custom value, or imputing them using various methods like mean, median, or mode. This function can also drop rows or columns exceeding a specified threshold of null values.
 
 **Parameters:**
 
@@ -47,6 +47,12 @@ The `handle_nulls` function manages missing values within specified columns of a
 
 - **`inplace`** (`bool`, default: `False`):  
   If `True`, modifies the DataFrame in place and returns `None`. If `False`, returns a new DataFrame with null values handled according to the specified action.
+
+- **`threshold`** (`Optional[float]`, default: `None`): 
+  Sets a threshold (0-100) for the percentage of missing values. If a row or column exceeds this threshold, it will be dropped. Ignored if None.
+
+- **`axis `** (`str`, default: `'rows'`):
+  Specifies whether to apply the threshold to `'rows'` or `'columns'`. 
 
 **Returns:**  
 - `Optional[pd.DataFrame]`: The DataFrame with null values handled, or `None` if `inplace=True`.
@@ -93,15 +99,19 @@ The `remove` function handles two types of DataFrame modifications: removing dup
 - `TypeError`: If input types are incorrect.
 
 ---
-## 3. `auto_rename_columns`
+
+## 3. `refine`
 
 **Description**  
-Automatically renames columns to remove spaces and special characters.
+The refine function is designed to clean and standardize a DataFrame by recommending readable column names and optionally cleaning row data. It suggests renaming columns to remove special characters and applies consistent formatting. Additionally, it can clean row data by removing unwanted characters and extra spaces.
 
 **Parameters:**
 
 - **`df`** (`pd.DataFrame`):  
   DataFrame to rename columns in.
+
+- **`clean_rows`** (`bool`, default: `True`):
+  If True, the function also cleans each row content by removing special characters and extra spaces.
 
 **Returns:**  
 - `pd.DataFrame`: DataFrame with columns renamed.
@@ -246,7 +256,7 @@ Recommends and applies data type conversions based on the analysis of each colum
 ## 9. `detect_outliers`
 
 **Description**  
-Detects outliers in a dataset using specified methods and thresholds.
+The `detect_outliers` function identifies outliers in a specified column of a DataFrame using traditional methods like Interquartile Range (IQR) and Z-Score, or advanced anomaly detection algorithms (Isolation Forest, Local Outlier Factor, and DBSCAN). The function removes outliers and prints the data's shape before and after outlier removal.
 
 **Parameters:**
 
@@ -262,13 +272,32 @@ Detects outliers in a dataset using specified methods and thresholds.
   Threshold for outlier detection.
 
 - **`columns`** (`Optional[List[str]]`, default: `None`):  
-  List of columns to apply outlier detection on.
+  List of columns or single column to apply outlier or anomalies detection on.
 
 - **`handle_missing`** (`bool`, default: `True`):  
   Whether to handle missing values by dropping them.
 
+- **`anomaly_method`** (`Optional[str]`, default: `None`): 
+  Specifies an anomaly detection model. If provided, it overrides the method parameter. Options are:
+  - `'isolation_forest'`: Uses the Isolation Forest model.
+  - `'lof'`: Uses the Local Outlier Factor model.
+  - `'dbscan'`: Uses the DBSCAN clustering algorithm.
+
+- **`contamination`** (`float`, default: `0.05`):
+  Proportion of outliers in the data for `'isolation_forest'` and `'lof'`.
+
+- **`n_neighbors`** (`int`, default: `20`):  
+  Number of neighbors for the Local Outlier Factor model.
+
+- **`eps`** (`float`, default: `0.5`):
+  Maximum distance for DBSCAN clustering to group points as neighbors.
+
+- **`min_samples`** (`int`, default: `5`):
+  Minimum samples for DBSCAN to define a cluster.
+
+
 **Returns:**  
-- `pd.DataFrame`: DataFrame with outliers detected.
+- `pd.DataFrame`: DataFrame with `outliers` or `anomalies` detected.
 
 ---
 
@@ -449,10 +478,10 @@ Here are some examples to illustrate the usage of the functions provided in `pys
 
 ```python
 import pandas as pd
-from pyspan import handle_nulls, remove, auto_rename_columns, rename_dataframe_columns
+from pyspan import handle_nulls, remove, refine, manual_rename_columns
 from pyspan import format_dt, split_column, detect_errors, convert_type, detect_outliers
 from pyspan import display_logs, remove_chars, reformat, scale_data, undo
-from pyspan import customer_sales_data, convert_unit
+from pyspan import sample_data, convert_unit
 
 # Load a dataset
 df = pd.read_csv('/content/GlobalSharkAttacks.csv')
@@ -467,6 +496,12 @@ df_cleaned_replace = handle_nulls(df, columns='column ', action='replace', with_
 # 3. Impute null values in the column using the mode
 df_cleaned_impute_mode = handle_nulls(df, columns='column ', action='impute', by='mode', inplace=False)
 
+# 4. For rows
+df_cleaned = handle_nulls(df, threshold=50, axis='rows')
+
+# 5. For columns
+df_cleaned = handle_nulls(df, threshold=30, axis='columns')
+
 # Example usage of remove
 # Remove duplicate rows based on column 
 df_no_duplicates = remove(df, operation='duplicates', columns='Type', keep='first', inplace=False)
@@ -474,12 +509,16 @@ df_no_duplicates = remove(df, operation='duplicates', columns='Type', keep='firs
 # Remove specified columns
 df_no_columns = remove(df, operation='columns', columns=['Type', 'Date'], inplace=False)
 
-# Example usage of auto_rename_columns
-auto_rename_columns(df)
+# Example usage of refine
+# Refine DataFrame columns
+df_cleaned = refine(df)
 
-# Example usage of rename_dataframe_columns
+# Refine DataFrame with column and row cleaning
+df_cleaned = refine(df, clean_rows=True)
+
+# Example usage of manual_rename_columns
 rename_dict = {'OldName': 'NewName'}
-df_renamed_dict = rename_dataframe_columns(df, rename_dict)
+df_renamed_dict = manual_rename_columns(df, rename_dict)
 
 # Example usage of format_dt
 # Apply the function to add features and format the 'timestamp' column
@@ -497,7 +536,17 @@ errors = detect_errors(df, date_columns=['DateColumn'], numeric_columns=['Numeri
 df_converted = convert_type(df)
 
 # Example usage of detect_outliers
-outliers = detect_outliers(df, method='iqr', threshold=1.5)
+# Detect outliers using IQR for multiple columns
+cleaned_data_iqr = detect_outliers(df, columns=['column', 'column'], method='iqr', threshold=1.5)
+
+# Detect anomalies using Isolation Forest for multiple columns
+cleaned_data_isolation_forest = detect_outliers(df, columns=['column', 'column'], anomaly_method='isolation_forest', contamination=0.05)
+
+# Detect anomalies using Local Outlier Factor (LOF)
+cleaned_data_lof = detect_outliers(df, columns='column', anomaly_method='lof', contamination=0.05, n_neighbors=20)
+
+# Detect anomalies using DBSCAN
+cleaned_data_dbscan = detect_outliers(df, columns='column', anomaly_method='dbscan', eps=0.5, min_samples=5)
 
 # Example usage of display_logs
 display_logs()
