@@ -309,18 +309,15 @@ def clean_text(text: str) -> str:
     Returns:
     - str: The cleaned text.
     """
-    # Initialize spell checker
-    spell = SpellChecker()
+    # Check if text is None and handle it
+    if text is None:
+        return None
 
     # Remove special characters and replace them with spaces
     clean_text = re.sub(r'[^a-zA-Z0-9 ]', ' ', text)
 
-    # Correct spelling of words
-    words = clean_text.split()
-    corrected_words = [spell.correction(word) for word in words]
-
     # Join words with single spaces and strip leading/trailing spaces
-    return ' '.join(corrected_words).strip()
+    return ' '.join(clean_text.split()).strip()
 
 def clean_column_name(column_name: str) -> str:
     """
@@ -330,10 +327,40 @@ def clean_column_name(column_name: str) -> str:
     - column_name (str): The original column name.
 
     Returns:
-    - str: The recommended clean column name.
+    - str or None: The recommended clean column name, or None if the column name is invalid.
     """
-    # Reuse the clean_text function for column names
-    return clean_text(column_name).title()
+    # Check if text is None and handle it
+    if column_name is None:
+        return None
+
+    # Initialize spell checker
+    spell = SpellChecker()
+
+    # Remove special characters for spelling check
+    clean_text = re.sub(r'[^a-zA-Z0-9 ]', ' ', column_name)
+
+    # Correct spelling of words
+    words = clean_text.split()
+    corrected_words = []
+    for word in words:
+        if word:
+            corrected_word = spell.correction(word)
+            if corrected_word:  # Only add valid corrected words
+                corrected_words.append(corrected_word)
+            else:
+                corrected_words.append(word)  # Keep the original word if no correction
+        else:
+            corrected_words.append(word)
+
+    # Join words, capitalize each, and remove extra spaces
+    cleaned_column_name = ' '.join(corrected_words).title()
+
+    # Return None if the cleaned name is equivalent to the original (or is empty)
+    if cleaned_column_name == column_name or cleaned_column_name.strip() == "":
+        return None
+
+    return cleaned_column_name
+
 
 def clean_row_data(df: pd.DataFrame) -> pd.DataFrame:
     """
