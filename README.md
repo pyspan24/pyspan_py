@@ -2,8 +2,21 @@
 
 🎉🎉🎉 Welcome to **pyspan**! 🎉🎉🎉
 
-**pyspan** is a Python package that simplifies data cleaning and preprocessing with Pandas. It offers functions for handling missing values, detecting outliers, performing spell checks, 
-identifying errors, and more. The package also includes a logging utility to track function calls and parameters efficiently.
+**pyspan** is a Python package designed to simplify data cleaning and preprocessing tasks, especially for Pandas DataFrames. It offers a range of functions to enhance data handling, including:
+
+- Handling missing values
+- Detecting outliers and anomalies
+- Performing spell checks and error identification
+- Logging function calls and parameters efficiently
+- Undo functionality for reverting recent changes made to the data
+
+**Key Features:**
+
+- **Pandas Support (Optional):** You can use **pyspan** with or without Pandas. It supports data passed in formats such as **list**, **string**, **tuple**, **dict**, or **JSON**. This makes it versatile for different data sources and formats.
+- **Undo Changes:** Need to undo the last changes made to your data? **pyspan** includes an undo feature to help you revert the most recent modifications.
+
+Whether you're working with a Pandas DataFrame or any other data structure, **pyspan** helps streamline your data preprocessing tasks, making it easier to clean, preprocess, and analyze your data.
+
 
 🚀  *Installation Process*
 To get started with **pyspan**, install the package using pip:
@@ -21,7 +34,7 @@ The `handle_nulls` function handles missing values in a DataFrame by offering se
 
 **Parameters:**
 
-- **`data`** (`pd.DataFrame`):  
+- **`df`** (`pd.DataFrame`, `List`, `dict`, `tuple`, `np.ndarray`, `str`):  
   The input DataFrame containing missing values.
 
 - **`columns`** (`Optional[Union[str, List[str]]]`, default: `None`):  
@@ -55,7 +68,7 @@ The `handle_nulls` function handles missing values in a DataFrame by offering se
   Specifies whether to apply the threshold to `'rows'` or `'columns'`. 
 
 **Returns:**  
-- `Optional[pd.DataFrame]`: The DataFrame with null values handled, or `None` if `inplace=True`.
+- `Optional[pd.DataFrame, List, dict, str]`: The Data with null values handled, or `None` if `inplace=True`.
 
 ---
 
@@ -66,7 +79,7 @@ The `remove` function handles two types of DataFrame modifications: removing dup
 
 **Parameters:**
 
-- **`df`** (`pd.DataFrame`):  
+- **`df`** (`pd.DataFrame`, `List`, `dict`, `tuple`, `np.ndarray`, `str`):  
   The input DataFrame on which the operation will be performed.
 
 - **`operation`** (`str`):  
@@ -92,7 +105,7 @@ The `remove` function handles two types of DataFrame modifications: removing dup
   If `True`, modifies the DataFrame in place. If `False`, returns a new DataFrame.
 
 **Returns:**  
-- `Optional[pd.DataFrame]`: DataFrame with duplicates removed or columns removed according to the specified criteria. Returns `None` if `inplace=True`.
+- `Optional[pd.DataFrame, List, dict, str]`: Data with duplicates removed or columns removed according to the specified criteria. Returns `None` if `inplace=True`.
 
 **Raises:**
 - `ValueError`: If invalid columns are specified or operation is invalid.
@@ -107,14 +120,14 @@ The refine function is designed to clean and standardize a DataFrame by recommen
 
 **Parameters:**
 
-- **`df`** (`pd.DataFrame`):  
+- **`df`** (`pd.DataFrame`, `List`, `dict`, `tuple`, `np.ndarray`, `str`):  
   DataFrame to rename columns in.
 
 - **`clean_rows`** (`bool`, default: `True`):
   If True, the function also cleans each row content by removing special characters and extra spaces.
 
 **Returns:**  
-- `pd.DataFrame`: DataFrame with columns renamed.
+- `pd.DataFrame`, `List`, `dict`,`str`: Data with columns renamed.
 
 ---
 
@@ -125,14 +138,14 @@ Renames columns in a DataFrame using a provided dictionary mapping.
 
 **Parameters:**
 
-- **`df`** (`pd.DataFrame`):  
+- **`df`** (`pd.DataFrame`, `List`, `dict`, `tuple`, `np.ndarray`, `str`):  
   DataFrame to rename columns in.
 
 - **`rename_dict`** (`dict`):  
   Dictionary mapping current column names to new column names.
   
   **Returns:**  
-- `pd.DataFrame`: DataFrame with columns renamed according to `rename_dict`.
+- `pd.DataFrame`, `List`, `dict`,`str`: Data with columns renamed according to `rename_dict`.
 
 ---
 
@@ -143,7 +156,7 @@ Adds additional date/time-based columns to a DataFrame and formats date/time col
 
 **Parameters:**
 
-- **`df`** (`pd.DataFrame`):  
+- **`df`** (`pd.DataFrame`, `List`, `dict`, `tuple`, `np.ndarray`, `str`):  
   DataFrame to which new date/time features will be added.
 
 - **`columns`** (`str`):  
@@ -183,7 +196,7 @@ Adds additional date/time-based columns to a DataFrame and formats date/time col
   Desired timezone for the datetime column(s).
 
 **Returns:**  
-- `pd.DataFrame`: DataFrame with added and formatted date/time features.
+- `pd.DataFrame`, `List`, `dict`,`str`: Data with added and formatted date/time features.
 
 ---
 
@@ -194,7 +207,7 @@ Splits a single column into multiple columns based on a delimiter.
 
 **Parameters:**
 
-- **`df`** (`pd.DataFrame`):  
+- **`df`** (`pd.DataFrame`, `List`, `dict`, `tuple`, `np.ndarray`, `str`):  
   DataFrame containing the column to split.
 
 - **`column`** (`str`):  
@@ -204,7 +217,7 @@ Splits a single column into multiple columns based on a delimiter.
   Delimiter to use for splitting (optional), e.g., `,`, `;`, `|`.
 
 **Returns:**  
-- `pd.DataFrame`: DataFrame with the specified column split into multiple columns.
+- `pd.DataFrame`, `List`, `dict`,`str`: Data with the specified column split into multiple columns.
 
 ---
 
@@ -215,7 +228,7 @@ Detects and flags data entry errors including invalid dates and misspelled words
 
 **Parameters:**
 
-- **`data`** (`pd.DataFrame`):  
+- **`df`** (`pd.DataFrame`, `List`, `dict`, `tuple`, `np.ndarray`, `str`):  
   DataFrame to analyze.
 
 - **`date_columns`** (`Optional[List[str]]`, default: `None`):  
@@ -231,7 +244,7 @@ Detects and flags data entry errors including invalid dates and misspelled words
   Expected date format for validation. 
 
 **Returns:**  
-- `pd.DataFrame`: DataFrame with detected errors flagged.
+- `pd.DataFrame`, `List`, `dict`,`str`: Data with detected errors flagged.
 
 ---
 
@@ -242,14 +255,14 @@ Recommends and applies data type conversions based on the analysis of each colum
 
 **Parameters:**
 
-- **`data`** (`pd.DataFrame` or `pd.Series`):  
+- **`df`** (`pd.DataFrame` or `pd.Series`, `List`, `dict`, `tuple`, `np.ndarray`, `str`):  
   DataFrame or Series to analyze.
 
 - **`columns`** (`Optional[List[str]]`, default: `None`):  
   Specific column to analyze (optional).
 
 **Returns:**  
-- `pd.DataFrame` or `pd.Series`: DataFrame or Series with recommended data type conversions applied.
+- `pd.DataFrame` or `pd.Series`, `List`, `dict`,`str`: Data or Series with recommended data type conversions applied.
 
 ---
 
@@ -260,7 +273,7 @@ The `detect_outliers` function identifies outliers in a specified column of a Da
 
 **Parameters:**
 
-- **`data`** (`pd.DataFrame` or `pd.Series`):  
+- **`df`** (`pd.DataFrame` or `pd.Series`, `List`, `dict`, `tuple`, `np.ndarray`, `str`):  
   DataFrame or Series to analyze.
 
 - **`method`** (`str`, default: `'iqr'`):  
@@ -297,7 +310,7 @@ The `detect_outliers` function identifies outliers in a specified column of a Da
 
 
 **Returns:**  
-- `pd.DataFrame`: DataFrame with `outliers` or `anomalies` detected.
+- `pd.DataFrame`, `List`, `dict`,`str`: Data with `outliers` or `anomalies` detected.
 
 ---
 
@@ -320,7 +333,7 @@ Cleans and formats text in specified columns of a DataFrame by trimming spaces a
 
 **Parameters:**
 
-- **`df`** (`pd.DataFrame`):  
+- **`df`** (`pd.DataFrame`, `List`, `dict`, `tuple`, `np.ndarray`, `str`):  
   The DataFrame containing the columns to be cleaned.
 
 - **`columns`** (`Optional[List[str]]`):  
@@ -333,7 +346,7 @@ Cleans and formats text in specified columns of a DataFrame by trimming spaces a
   String of custom characters to be removed.
 
 **Returns:**  
-- `pd.DataFrame`: DataFrame with specified columns cleaned.
+- `pd.DataFrame`, `List`, `dict`,`str`: Data with specified columns cleaned.
 
 ---
 
@@ -344,7 +357,7 @@ Applies the data type and formatting from a reference column to a target column 
 
 **Parameters:**
 
-- **`df`** (`pd.DataFrame`):  
+- **`df`** (`pd.DataFrame`, `List`, `dict`, `tuple`, `np.ndarray`, `str`):  
   The DataFrame containing both the target and reference columns.
 
 - **`target_column`** (`str`):  
@@ -354,7 +367,7 @@ Applies the data type and formatting from a reference column to a target column 
   The name of the column to borrow formatting from.
 
 **Returns:**  
-- `pd.DataFrame`: DataFrame with the target column formatted based on the reference column.
+- `pd.DataFrame`, `List`, `dict`,`str`: Data with the target column formatted based on the reference column.
 
 **Raises:**
 - `ValueError`: If the target or reference column does not exist.
@@ -369,7 +382,7 @@ Scales data in a DataFrame using specified scaling methods: Min-Max Scaling, Rob
 
 **Parameters:**
 
-- **`df`** (`pd.DataFrame`):  
+- **`df`** (`pd.DataFrame`, `List`, `dict`, `tuple`, `np.ndarray`, `str`):  
   The DataFrame containing the data to be scaled.
 
 - **`method`** (`str`, default: `'minmax'`):  
@@ -382,7 +395,7 @@ Scales data in a DataFrame using specified scaling methods: Min-Max Scaling, Rob
   List of column names to apply scaling on. If `None`, scales all numerical columns.
 
 **Returns:**  
-- `pd.DataFrame`: DataFrame with specified columns scaled according to the selected method.
+- `pd.DataFrame`, `List`, `dict`,`str`: Data with specified columns scaled according to the selected method.
 
 ---
 
@@ -396,7 +409,7 @@ No parameters are passed to the undo function, but it operates on a globally tra
 Returns:
 
 **Returns:**  
-- `pd.DataFrame`: The DataFrame in its previous state before the most recent modification.
+- `pd.DataFrame`, `List`, `dict`,`str`: The Data in its previous state before the most recent modification.
 
 **Note:** 
 If no changes have been made, undo will print a message saying there are no recent changes to undo.
@@ -439,7 +452,7 @@ The convert_unit function is designed to detect and convert units within a speci
 
 **Parameters:**
 
-- **`df`** (`pd.DataFrame`):  
+- **`df`** (`pd.DataFrame`, `List`, `dict`, `tuple`, `np.ndarray`, `str`):  
 The DataFrame containing the data for unit conversion.
 
 -**`columns`** (`Optional[List[str]]`):
@@ -456,7 +469,7 @@ The target unit for the conversion (e.g., 'm', 'g').
 
 **Returns:**
 
--`pd.DataFrame`: A new DataFrame with the values in the specified column converted to the target unit. It also retains any non-numeric values in the original column.
+-`pd.DataFrame`, `List`, `dict`,`str`: A new Data with the values in the specified column converted to the target unit. It also retains any non-numeric values in the original column.
 
 **Supported Unit Categories and Examples:**
 
@@ -567,22 +580,22 @@ df_reformatted = reformat(df, target_column='target_column', reference_column='r
 
 # Example usage of scale_data
 # Apply Min-Max Scaling to columns 'A' and 'B'
-df_scaled = scale_data(df, method='minmax', columns=['A', 'B'])
+df_scaled = scale_data(df, method='min-max', columns=['A', 'B'])
 
 # Example usage of undo
 # Undo the most recent change
 df = undo()
 
-# Example usage of Dataset 'customer_sales_data'
-# Load the Customer Sales Data dataset
-df = load_customer_sales_data()
+# Example usage of Dataset 'sample_data'
+# Load the Sample Data dataset
+df = sample_data()
 
 # Example usage of convert_unit
 # Convert 'Distance' column from meters to nautical miles
-converted_df = convert_unit(data=df, column='Distance', unit_category='length', from_unit='m', to_unit='nmi',)
+converted_df = convert_unit(df, column='Distance', unit_category='length', from_unit='m', to_unit='nmi',)
 
 # Convert 'Temperature' column from Fahrenheit to Kelvin
-converted_df_temp = convert_unit(data=df, column='Temperature', unit_category='temperature', from_unit='F', to_unit='K')
+converted_df_temp = convert_unit(df, column='Temperature', unit_category='temperature', from_unit='F', to_unit='K')
 ```
 ---
 
