@@ -118,85 +118,38 @@ def handle_nulls(
     inplace: bool = False,
     threshold: Optional[float] = None,
     axis: str = 'rows'
-) -> Optional[Union[pd.DataFrame, List, dict, str]]:
+) -> Optional[Union[pd.DataFrame, List, dict, tuple, np.ndarray, str]]:
     """
-    Handle null values in a DataFrame by removing, replacing, imputing, or dropping rows/columns
-    with more than x% missing values.
+    Handle null values in various data types by removing, replacing, imputing, or applying a threshold.
 
     Parameters:
-    - df (Union[pd.DataFrame, List, dict, tuple, np.ndarray, str]): Input data.
-    - columns (Optional[Union[str, List[str]]]): Column(s) to check for null values.
-      If None, apply to the entire data. Default is None.
-    - action (str): Action to perform on rows with null values.
-      Options are 'remove' to drop rows, 'replace' to fill nulls with a custom value,
-      or 'impute' to fill nulls using a strategy like 'mean', 'median', etc. Default is 'remove'.
-    - with_val (Optional[Union[int, float, str]]): Custom value to replace nulls with, applicable if action is 'replace'.
-    - by (Optional[str]): Strategy to use for imputing nulls ('mean', 'median', 'mode', etc.).
-      Required if action is 'impute'.
-    - inplace (bool): If True, modify the DataFrame in place. If False, return a new DataFrame. Default is False.
-    - threshold (Optional[float]): Percentage of missing values (0-100) allowed. If exceeded, drop the row/column.
-    - axis (str): Specify whether to apply the threshold to 'rows' or 'columns'. Default is 'rows'.
+    (same as the original)
 
     Returns:
-    - Optional[Union[pd.DataFrame, List, dict, str]]: Modified data or None if inplace=True.
+    - Optional[Union[pd.DataFrame, List, dict, tuple, np.ndarray, str]]: Modified data or None if inplace=True.
     """
-
-    # Convert non-Pandas inputs to DataFrame
-    original_format = None
-    if isinstance(df, pd.DataFrame):
-        pass
-    elif isinstance(df, (list, tuple, np.ndarray)):
-        original_format = type(df)
-        df = pd.DataFrame(df)
-    elif isinstance(df, dict):
-        original_format = 'dict'
-        df = pd.DataFrame.from_dict(df)
-    elif isinstance(df, str):
-        try:
-            parsed_data = json.loads(df)  # Parse JSON if possible
-            if isinstance(parsed_data, dict):
-                original_format = 'json'
-                df = pd.DataFrame.from_dict(parsed_data)
-            else:
-                raise ValueError("String inputs must be JSON objects.")
-        except json.JSONDecodeError:
-            raise ValueError("String inputs must be valid JSON.")
-    else:
-        raise TypeError(
-            "Unsupported data type. Supported types are: pd.DataFrame, list, tuple, dict, NumPy array, and JSON string."
-        )
 
     # Validate axis
     if axis not in ['rows', 'columns']:
         raise ValueError("The 'axis' parameter must be either 'rows' or 'columns'.")
 
     # Validate threshold
-    if threshold is not None:
-        if not (0 <= threshold <= 100):
-            raise ValueError("The 'threshold' parameter must be between 0 and 100.")
+    if threshold is not None and not (0 <= threshold <= 100):
+        raise ValueError("The 'threshold' parameter must be between 0 and 100.")
 
-    # Handle columns parameter
-    if columns is not None:
-        if isinstance(columns, str):
-            columns = [columns]
-        subset_df = df[columns]
-    else:
-        subset_df = df
-
-    # Drop rows/columns based on threshold
-    if threshold is not None:
-        if axis == 'rows':
-            df_cleaned = df.dropna(thresh=int((1 - threshold / 100) * df.shape[1]), axis=0)
-        elif axis == 'columns':
-            df_cleaned = df.dropna(thresh=int((1 - threshold / 100) * df.shape[0]), axis=1)
-    else:
-        # Process according to action (remove, replace, impute)
-        if action == 'remove':
-            df_cleaned = df.dropna(subset=subset_df.columns)
+    # Process Pandas DataFrame
+    if isinstance(df, pd.DataFrame):
+        if threshold is not None:
+            if axis == 'rows':
+                df_cleaned = df.dropna(thresh=int((1 - threshold / 100) * df.shape[1]), axis=0)
+            else:
+                df_cleaned = df.dropna(thresh=int((1 - threshold / 100) * df.shape[0]), axis=1)
+        elif action == 'remove':
+            df_cleaned = df.dropna(subset=columns if columns else None)
         elif action == 'replace':
             if with_val is None:
                 raise ValueError("A value must be provided when action is 'replace'.")
-            df_cleaned = df.fillna({col: with_val for col in subset_df.columns})
+            df_cleaned = df.fillna({col: with_val for col in columns} if columns else with_val)
         elif action == 'impute':
             strategies = {
                 'mean': lambda col: col.fillna(col.mean()),
@@ -204,30 +157,79 @@ def handle_nulls(
                 'mode': lambda col: col.fillna(col.mode().iloc[0] if not col.mode().empty else col),
                 'interpolate': lambda col: col.interpolate(),
                 'forward_fill': lambda col: col.ffill(),
-                'backward_fill': lambda col: col.bfill()
+                'backward_fill': lambda col: col.bfill(),
             }
             if by not in strategies:
                 raise ValueError("Invalid impute strategy. Use one of ['mean', 'median', 'mode', 'interpolate', 'forward_fill', 'backward_fill'].")
             df_cleaned = df.copy()
-            for col in subset_df.columns:
+            for col in (columns if columns else df.columns):
                 df_cleaned[col] = strategies[by](df_cleaned[col])
         else:
             raise ValueError("Action must be either 'remove', 'replace', or 'impute'.")
 
-    # Convert back to original format if needed
-    if original_format == list:
-        return df_cleaned.values.tolist()
-    elif original_format == tuple:
-        return tuple(map(tuple, df_cleaned.values))
-    elif original_format == 'dict':
-        return df_cleaned.to_dict(orient="list")
-    elif original_format == 'json':
-        return df_cleaned.to_json()
-    elif inplace:
-        df.update(df_cleaned)
-        return None
+    # Process List or Tuple
+    elif isinstance(df, (list, tuple)):
+        df_cleaned = [val if val is not None else with_val for val in df]
+        if threshold is not None:
+            valid_count = len([val for val in df_cleaned if val is not None])
+            if valid_count / len(df_cleaned) < (1 - threshold / 100):
+                df_cleaned = [] if isinstance(df, list) else ()
+
+        if isinstance(df, tuple):
+            df_cleaned = tuple(df_cleaned)
+
+    # Process Dictionary
+    elif isinstance(df, dict):
+        df_cleaned = {}
+        for key, values in df.items():
+            if not isinstance(values, list):
+                raise ValueError("All dictionary values must be lists for processing.")
+            cleaned_values = [val if val is not None else with_val for val in values]
+            if threshold is not None:
+                valid_count = len([val for val in cleaned_values if val is not None])
+                if valid_count / len(cleaned_values) < (1 - threshold / 100):
+                    cleaned_values = []
+            df_cleaned[key] = cleaned_values
+
+    # Process JSON String
+    elif isinstance(df, str):
+        try:
+            parsed_data = json.loads(df)  # Parse JSON
+            if isinstance(parsed_data, dict):
+                for key, values in parsed_data.items():
+                    if not isinstance(values, list):
+                        raise ValueError("All JSON dictionary values must be lists for processing.")
+                    parsed_data[key] = [val if val is not None else with_val for val in values]
+                df_cleaned = json.dumps(parsed_data)
+            else:
+                raise ValueError("JSON must represent a dictionary of lists.")
+        except json.JSONDecodeError:
+            # Treat as a simple string
+            df_cleaned = df if df.strip() else with_val
+
+    # Process NumPy Array
+    elif isinstance(df, np.ndarray):
+        df_cleaned = np.where(pd.isnull(df), with_val, df)
+        if threshold is not None:
+            valid_count = np.count_nonzero(~pd.isnull(df))
+            if valid_count / df.size < (1 - threshold / 100):
+                df_cleaned = np.array([])
+
     else:
-        return df_cleaned
+        raise TypeError("Unsupported data type. Supported types: pd.DataFrame, list, tuple, dict, str, np.ndarray.")
+
+    # Handle inplace modifications
+    if inplace:
+        if isinstance(df, pd.DataFrame):
+            df.update(df_cleaned)
+            return None
+        elif isinstance(df, (list, dict)):
+            df[:] = df_cleaned
+            return None
+        elif isinstance(df, tuple):
+            raise ValueError("Inplace modification is not supported for tuples.")
+    return df_cleaned
+
     
 
 
@@ -240,7 +242,6 @@ from typing import Optional, Union, List
 
 @log_function_call
 @track_changes
-
 def remove(
     df: Union[pd.DataFrame, List, dict, tuple, np.ndarray, str],
     operation: str,
@@ -338,6 +339,14 @@ def remove(
     else:
         raise ValueError("operation must be either 'duplicates' or 'columns'.")
 
+    # Handle inplace modification
+    if inplace:
+        if isinstance(df, pd.DataFrame):
+            df.update(df_cleaned)
+        elif original_format in [list, tuple, 'dict']:
+            raise ValueError("Inplace modification is not supported for non-Pandas formats.")
+        return None
+
     # Convert back to original format if needed
     if original_format == list:
         return df_cleaned.values.tolist()
@@ -347,11 +356,9 @@ def remove(
         return df_cleaned.to_dict(orient="list")
     elif original_format == 'json':
         return df_cleaned.to_json()
-    elif inplace:
-        df.update(df_cleaned)
-        return None
     else:
         return df_cleaned
+
 
 
 
@@ -412,7 +419,7 @@ def clean_row_data(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
     - pd.DataFrame: The cleaned DataFrame.
     """
-    return df.applymap(lambda x: clean_text(str(x)) if isinstance(x, str) else x)
+    return df.map(lambda x: clean_text(str(x)) if isinstance(x, str) else x)
 
 
 def rename_columns(df: pd.DataFrame) -> dict:
@@ -439,32 +446,6 @@ def apply_column_renames(df: pd.DataFrame, rename_map: dict) -> None:
     """
     df.rename(columns=rename_map, inplace=True)
 
-
-def convert_to_dataframe(data: Union[pd.DataFrame, list, dict, tuple, np.ndarray, str]) -> pd.DataFrame:
-    """
-    Converts supported data types to a Pandas DataFrame.
-
-    Parameters:
-    - data (Union[pd.DataFrame, list, dict, tuple, np.ndarray, str]): Input data.
-
-    Returns:
-    - pd.DataFrame: Converted DataFrame.
-    """
-    if isinstance(data, pd.DataFrame):
-        return data
-    elif isinstance(data, (list, tuple, np.ndarray)):
-        return pd.DataFrame(data)
-    elif isinstance(data, dict):
-        return pd.DataFrame.from_dict(data)
-    elif isinstance(data, str):
-        try:
-            parsed_data = json.loads(data)
-            if isinstance(parsed_data, dict):
-                return pd.DataFrame.from_dict(parsed_data)
-        except json.JSONDecodeError:
-            raise ValueError("String inputs must be valid JSON objects.")
-    raise TypeError("Unsupported data type. Provide a DataFrame, list, tuple, dict, NumPy array, or JSON string.")
-
 # Refined function
 @log_function_call
 @track_changes
@@ -482,43 +463,75 @@ def refine(
     Returns:
     - Union[pd.DataFrame, list, dict, tuple, str]: Refined data in the same format as input.
     """
-    # Convert input to DataFrame if necessary
-    original_format = type(df)
-    df_converted = convert_to_dataframe(df)
+    # Handle list type
+    if isinstance(df, list):
+        cleaned_data = [clean_text(str(item)) if isinstance(item, str) else item for item in df]
+        if clean_rows:
+            cleaned_data = [clean_text(str(item)) if isinstance(item, str) else item for item in cleaned_data]
+        return cleaned_data
 
-    # Get column rename recommendations
-    rename_recommendations = rename_columns(df_converted)
+    # Handle tuple type
+    elif isinstance(df, tuple):
+        cleaned_data = tuple(clean_text(str(item)) if isinstance(item, str) else item for item in df)
+        if clean_rows:
+            cleaned_data = tuple(clean_text(str(item)) if isinstance(item, str) else item for item in cleaned_data)
+        return cleaned_data
 
-    if rename_recommendations:
-        print("\nRecommended Column Renames:")
-        for original, recommended in rename_recommendations.items():
-            print(f"Original: {original}, Recommended: {recommended}")
-        apply_changes = input("\nDo you want to apply these column name changes? (yes/no): ").strip().lower()
-        if apply_changes == 'yes':
-            apply_column_renames(df_converted, rename_recommendations)
-            print("\nRenamed DataFrame Column Names:")
-            print(df_converted.columns)
+    # Handle numpy array type
+    elif isinstance(df, np.ndarray):
+        cleaned_data = np.vectorize(lambda x: clean_text(str(x)) if isinstance(x, str) else x)(df)
+        if clean_rows:
+            cleaned_data = np.vectorize(lambda x: clean_text(str(x)) if isinstance(x, str) else x)(cleaned_data)
+        return cleaned_data
 
-    # Clean rows if specified
-    if clean_rows:
-        clean_row_data_prompt = input("\nDo you want to clean row data (remove special characters and extra spaces)? (yes/no): ").strip().lower()
-        if clean_row_data_prompt == 'yes':
-            df_converted = clean_row_data(df_converted)
-            print("\nRow data has been cleaned.")
+    # Handle dictionary type
+    elif isinstance(df, dict):
+        cleaned_data = {key: [clean_text(str(item)) if isinstance(item, str) else item for item in value]
+                        for key, value in df.items()}
+        if clean_rows:
+            cleaned_data = {key: [clean_text(str(item)) if isinstance(item, str) else item for item in value]
+                            for key, value in cleaned_data.items()}
+        return cleaned_data
 
-    # Convert back to original format
-    if original_format == pd.DataFrame:
-        return df_converted
-    elif original_format == list:
-        return df_converted.values.tolist()
-    elif original_format == tuple:
-        return tuple(map(tuple, df_converted.values))
-    elif original_format == dict:
-        return df_converted.to_dict(orient="list")
-    elif original_format == str:
-        return df_converted.to_json()
+    # Handle JSON string type
+    elif isinstance(df, str):
+        try:
+            parsed_data = json.loads(df)
+            if isinstance(parsed_data, dict):
+                cleaned_data = {key: [clean_text(str(item)) if isinstance(item, str) else item for item in value]
+                                for key, value in parsed_data.items()}
+            return json.dumps(cleaned_data)
+        except json.JSONDecodeError:
+            raise ValueError("String inputs must be valid JSON objects.")
+
+    # Handle pandas DataFrame type
+    elif isinstance(df, pd.DataFrame):
+        # Get column rename recommendations
+        rename_recommendations = rename_columns(df)
+
+        if rename_recommendations:
+            print("\nRecommended Column Renames:")
+            for original, recommended in rename_recommendations.items():
+                print(f"Original: {original}, Recommended: {recommended}")
+            apply_changes = input("\nDo you want to apply these column name changes? (yes/no): ").strip().lower()
+            if apply_changes == 'yes':
+                apply_column_renames(df, rename_recommendations)
+                print("\nRenamed DataFrame Column Names:")
+                print(df.columns)
+
+        # Clean rows if specified
+        if clean_rows:
+            clean_row_data_prompt = input("\nDo you want to clean row data (remove special characters and extra spaces)? (yes/no): ").strip().lower()
+            if clean_row_data_prompt == 'yes':
+                df = clean_row_data(df)
+                print("\nRow data has been cleaned.")
+
+        return df
+
     else:
-        return df_converted
+        raise TypeError("Unsupported data type. Supported types are: list, tuple, dict, NumPy array, JSON string, or pandas DataFrame.")
+
+
 
 
 
@@ -550,52 +563,74 @@ def manual_rename_columns(
     - ValueError: If the rename_dict is empty.
     """
 
-    # Convert input to DataFrame if necessary
-    original_format = type(df)
-
-    if isinstance(df, pd.DataFrame):
-        df_converted = df
-    elif isinstance(df, (list, tuple, np.ndarray)):
-        df_converted = pd.DataFrame(df)
-    elif isinstance(df, dict):
-        df_converted = pd.DataFrame.from_dict(df)
-    elif isinstance(df, str):
-        try:
-            parsed_data = json.loads(df)
-            if isinstance(parsed_data, dict):
-                df_converted = pd.DataFrame.from_dict(parsed_data)
-            else:
-                raise ValueError("String input must be valid JSON representing an object.")
-        except json.JSONDecodeError:
-            raise ValueError("String input must be valid JSON representing an object.")
-    else:
-        raise TypeError("Unsupported data type. Please provide a DataFrame, list, tuple, dict, or JSON string.")
-
     # Check for invalid rename_dict
     if not isinstance(rename_dict, dict) or not rename_dict:
         raise ValueError("rename_dict must be a non-empty dictionary.")
 
-    # Check for columns that are not in the DataFrame
-    missing_columns = [col for col in rename_dict if col not in df_converted.columns]
-    if missing_columns:
-        raise KeyError(f"These columns do not exist in the DataFrame: {missing_columns}")
+    if isinstance(df, pd.DataFrame):
+        # Check for columns that are not in the DataFrame
+        missing_columns = [col for col in rename_dict if col not in df.columns]
+        if missing_columns:
+            raise KeyError(f"These columns do not exist in the DataFrame: {missing_columns}")
 
-    # Rename columns using the provided dictionary
-    renamed_df = df_converted.rename(columns=rename_dict)
-
-    # Convert back to the original format if necessary
-    if original_format == pd.DataFrame:
+        # Rename columns using the provided dictionary
+        renamed_df = df.rename(columns=rename_dict)
         return renamed_df
-    elif original_format == list:
-        return renamed_df.values.tolist()
-    elif original_format == tuple:
-        return tuple(map(tuple, renamed_df.values))
-    elif original_format == dict:
-        return renamed_df.to_dict(orient="list")
-    elif original_format == str:
-        return renamed_df.to_json()
+
+    elif isinstance(df, list):
+        # Handle case for list of dictionaries (which can be mapped to columns)
+        if all(isinstance(item, dict) for item in df):
+            renamed_list = []
+            for item in df:
+                renamed_item = {rename_dict.get(k, k): v for k, v in item.items()}
+                renamed_list.append(renamed_item)
+            return renamed_list
+        else:
+            raise TypeError("For a list, elements must be dictionaries with keys as column names.")
+
+    elif isinstance(df, tuple):
+        # Handle case for tuple of dictionaries (similar to list)
+        if all(isinstance(item, dict) for item in df):
+            renamed_tuple = tuple(
+                {rename_dict.get(k, k): v for k, v in item.items()} for item in df
+            )
+            return renamed_tuple
+        else:
+            raise TypeError("For a tuple, elements must be dictionaries with keys as column names.")
+
+    elif isinstance(df, np.ndarray):
+        # Handle case for ndarray, assuming it's 2D (columns are present in the first row)
+        if df.ndim == 2:
+            columns = df[0]
+            renamed_columns = [rename_dict.get(col, col) for col in columns]
+            renamed_array = np.vstack([renamed_columns, df[1:]])
+            return renamed_array
+        else:
+            raise ValueError("Numpy array must be 2D to map column names.")
+
+    elif isinstance(df, dict):
+        # Handle case for a dictionary of lists (columns as keys)
+        if all(isinstance(v, list) for v in df.values()):
+            renamed_dict = {rename_dict.get(k, k): v for k, v in df.items()}
+            return renamed_dict
+        else:
+            raise TypeError("For a dictionary, values must be lists representing column data.")
+
+    elif isinstance(df, str):
+        # Handle case for JSON string
+        try:
+            parsed_data = json.loads(df)
+            if isinstance(parsed_data, dict):
+                renamed_dict = {rename_dict.get(k, k): v for k, v in parsed_data.items()}
+                return json.dumps(renamed_dict)
+            else:
+                raise ValueError("String input must be valid JSON representing an object.")
+        except json.JSONDecodeError:
+            raise ValueError("String input must be valid JSON representing an object.")
+
     else:
-        return renamed_df
+        raise TypeError("Unsupported data type. Please provide a DataFrame, list, tuple, dict, or JSON string.")
+
     
 
 
@@ -651,86 +686,154 @@ def format_dt(
     - ValueError: If the specified column does not exist in the DataFrame or conversion fails.
     """
 
-    # Convert input to DataFrame if necessary
-    original_format = type(df)
-
+    # Handle DataFrame
     if isinstance(df, pd.DataFrame):
-        df_converted = df
-    elif isinstance(df, (list, tuple, np.ndarray)):
-        df_converted = pd.DataFrame(df)
+        for column in columns if isinstance(columns, list) else [columns]:
+            if column not in df.columns:
+                raise ValueError(f"Column '{column}' does not exist in the DataFrame.")
+
+            # Convert the column to datetime if it's not already
+            if not pd.api.types.is_datetime64_any_dtype(df[column]):
+                try:
+                    df[column] = pd.to_datetime(df[column])
+                except Exception as e:
+                    raise ValueError(f"Failed to convert column '{column}' to datetime. Error: {e}")
+
+            # Adding requested datetime features
+            if day:
+                df[f'{column}_day'] = df[column].dt.day
+            if month:
+                df[f'{column}_month'] = df[column].dt.month
+            if year:
+                df[f'{column}_year'] = df[column].dt.year
+            if quarter:
+                df[f'{column}_quarter'] = df[column].dt.quarter
+            if hour:
+                df[f'{column}_hour'] = df[column].dt.hour
+            if minute:
+                df[f'{column}_minute'] = df[column].dt.minute
+            if day_of_week:
+                df[f'{column}_day_of_week'] = df[column].dt.day_name()
+
+            # Apply date and time format and timezone conversion
+            if from_timezone and to_timezone:
+                df[column] = (
+                    df[column]
+                    .dt.tz_localize(from_timezone, ambiguous='NaT', nonexistent='NaT')
+                    .dt.tz_convert(to_timezone)
+                )
+            elif from_timezone or to_timezone:
+                raise ValueError("Both from_timezone and to_timezone must be specified for timezone conversion.")
+
+            # Apply date and time format
+            df[column] = df[column].dt.strftime(f"{date_format} {time_format}")
+
+        return df
+
+    # Handle list
+    elif isinstance(df, list):
+        if not all(isinstance(item, dict) for item in df):
+            raise ValueError("Each item in the list should be a dictionary if it's not a DataFrame.")
+
+        for column in columns if isinstance(columns, list) else [columns]:
+            for item in df:
+                if column not in item:
+                    raise ValueError(f"Column '{column}' does not exist in the list of dictionaries.")
+
+                item[column] = pd.to_datetime(item[column])
+
+                # Adding requested datetime features
+                if day:
+                    item[f'{column}_day'] = item[column].dt.day
+                if month:
+                    item[f'{column}_month'] = item[column].dt.month
+                if year:
+                    item[f'{column}_year'] = item[column].dt.year
+                if quarter:
+                    item[f'{column}_quarter'] = item[column].dt.quarter
+                if hour:
+                    item[f'{column}_hour'] = item[column].dt.hour
+                if minute:
+                    item[f'{column}_minute'] = item[column].dt.minute
+                if day_of_week:
+                    item[f'{column}_day_of_week'] = item[column].dt.day_name()
+
+        return df
+
+    # Handle dict
     elif isinstance(df, dict):
-        df_converted = pd.DataFrame.from_dict(df)
+        for column in columns if isinstance(columns, list) else [columns]:
+            if column not in df:
+                raise ValueError(f"Column '{column}' does not exist in the dictionary.")
+
+            df[column] = pd.to_datetime(df[column])
+
+            # Adding requested datetime features
+            if day:
+                df[f'{column}_day'] = df[column].dt.day
+            if month:
+                df[f'{column}_month'] = df[column].dt.month
+            if year:
+                df[f'{column}_year'] = df[column].dt.year
+            if quarter:
+                df[f'{column}_quarter'] = df[column].dt.quarter
+            if hour:
+                df[f'{column}_hour'] = df[column].dt.hour
+            if minute:
+                df[f'{column}_minute'] = df[column].dt.minute
+            if day_of_week:
+                df[f'{column}_day_of_week'] = df[column].dt.day_name()
+
+        return df
+
+    # Handle tuple
+    elif isinstance(df, tuple):
+        df_as_list = list(df)
+
+        for column in columns if isinstance(columns, list) else [columns]:
+            for item in df_as_list:
+                if isinstance(item, dict) and column in item:
+                    item[column] = pd.to_datetime(item[column])
+                else:
+                    raise ValueError(f"Column '{column}' does not exist in the tuple.")
+
+                # Adding requested datetime features
+                if day:
+                    item[f'{column}_day'] = item[column].dt.day
+                if month:
+                    item[f'{column}_month'] = item[column].dt.month
+                if year:
+                    item[f'{column}_year'] = item[column].dt.year
+                if quarter:
+                    item[f'{column}_quarter'] = item[column].dt.quarter
+                if hour:
+                    item[f'{column}_hour'] = item[column].dt.hour
+                if minute:
+                    item[f'{column}_minute'] = item[column].dt.minute
+                if day_of_week:
+                    item[f'{column}_day_of_week'] = item[column].dt.day_name()
+
+        return tuple(df_as_list)
+
+    # Handle np.ndarray
+    elif isinstance(df, np.ndarray):
+        raise ValueError("DataFrames are expected, but if working with numpy arrays, conversion is not straightforward. Convert them to DataFrames first.")
+
+    # Handle str (JSON)
     elif isinstance(df, str):
         try:
             parsed_data = json.loads(df)
             if isinstance(parsed_data, dict):
-                df_converted = pd.DataFrame.from_dict(parsed_data)
+                return format_dt(parsed_data, columns, day, month, year, quarter, hour, minute, day_of_week, date_format, time_format, from_timezone, to_timezone)
             else:
                 raise ValueError("String input must be valid JSON representing an object.")
         except json.JSONDecodeError:
             raise ValueError("String input must be valid JSON representing an object.")
+
     else:
         raise TypeError("Unsupported data type. Please provide a DataFrame, list, tuple, dict, or JSON string.")
 
-    # Ensure columns is a list to handle both single and multiple columns
-    if isinstance(columns, str):
-        columns = [columns]
 
-    for column in columns:
-        # Check if the DataFrame contains the specified column
-        if column not in df_converted.columns:
-            raise ValueError(f"Column '{column}' does not exist in the DataFrame.")
-
-        # Convert the column to datetime if it's not already
-        if not pd.api.types.is_datetime64_any_dtype(df_converted[column]):
-            try:
-                df_converted[column] = pd.to_datetime(df_converted[column])
-            except Exception as e:
-                raise ValueError(f"Failed to convert column '{column}' to datetime. Error: {e}")
-
-        # Adding requested datetime features
-        if day:
-            df_converted[f'{column}_day'] = df_converted[column].dt.day
-        if month:
-            df_converted[f'{column}_month'] = df_converted[column].dt.month
-        if year:
-            df_converted[f'{column}_year'] = df_converted[column].dt.year
-        if quarter:
-            df_converted[f'{column}_quarter'] = df_converted[column].dt.quarter
-        if hour:
-            df_converted[f'{column}_hour'] = df_converted[column].dt.hour
-        if minute:
-            df_converted[f'{column}_minute'] = df_converted[column].dt.minute
-        if day_of_week:
-            df_converted[f'{column}_day_of_week'] = df_converted[column].dt.day_name()
-
-        # Apply date and time format and timezone conversion
-        if from_timezone and to_timezone:
-            # Convert timezone if both from and to timezones are specified
-            df_converted[column] = (
-                df_converted[column]
-                .dt.tz_localize(from_timezone, ambiguous='NaT', nonexistent='NaT')
-                .dt.tz_convert(to_timezone)
-            )
-        elif from_timezone or to_timezone:
-            raise ValueError("Both from_timezone and to_timezone must be specified for timezone conversion.")
-
-        # Apply date and time format
-        df_converted[column] = df_converted[column].dt.strftime(f"{date_format} {time_format}")
-
-    # Convert back to the original format if necessary
-    if original_format == pd.DataFrame:
-        return df_converted
-    elif original_format == list:
-        return df_converted.values.tolist()
-    elif original_format == tuple:
-        return tuple(map(tuple, df_converted.values))
-    elif original_format == dict:
-        return df_converted.to_dict(orient="list")
-    elif original_format == str:
-        return df_converted.to_json()
-    else:
-        return df_converted
     
 
 
@@ -764,7 +867,6 @@ def detect_delimiter(series: pd.Series) -> str:
     # Return the most common delimiter
     most_common_delimiter, _ = Counter(delimiters).most_common(1)[0]
     return most_common_delimiter
-
 @log_function_call
 @track_changes
 
@@ -787,67 +889,114 @@ def split_column(
     Raises:
     - ValueError: If the column does not exist, no delimiter is detected, or an invalid delimiter is provided.
     """
-    # Convert input to DataFrame if necessary
-    original_format = type(df)
+    # Handle different input types without converting to DataFrame
 
+    # If input is a DataFrame
     if isinstance(df, pd.DataFrame):
         df_converted = df
-    elif isinstance(df, (list, tuple, np.ndarray)):
-        df_converted = pd.DataFrame(df)
+
+        # Validate input
+        if column not in df_converted.columns:
+            raise ValueError(f"Column '{column}' does not exist in the DataFrame.")
+
+        if delimiter is None:
+            # Detect the delimiter if not provided
+            delimiter = detect_delimiter(df_converted[column])
+            if delimiter is None:
+                raise ValueError("No delimiter detected and none provided.")
+        else:
+            # If the user provides a delimiter, use it regardless of the predefined list
+            if not isinstance(delimiter, str) or len(delimiter) == 0:
+                raise ValueError("Provided delimiter must be a non-empty string.")
+
+        # Split the column based on the delimiter
+        expanded_columns = df_converted[column].str.split(delimiter, expand=True)
+
+        # Remove any columns that are entirely NaN (i.e., extra columns)
+        expanded_columns = expanded_columns.dropna(how='all', axis=1)
+
+        # Drop the original column and concatenate the new columns
+        df_expanded = df_converted.drop(columns=[column]).join(expanded_columns)
+
+        # Rename new columns with a suffix to identify them
+        df_expanded.columns = list(df_expanded.columns[:-len(expanded_columns.columns)]) + \
+                              [f"{column}_{i+1}" for i in range(len(expanded_columns.columns))]
+
+        return df_expanded
+
+    # If input is a list of dicts
+    elif isinstance(df, list):
+        # Ensure each element of the list is a dictionary (if list of dicts)
+        if not all(isinstance(item, dict) for item in df):
+            raise TypeError("List input must contain dictionaries.")
+
+        for item in df:
+            if column not in item:
+                raise ValueError(f"Column '{column}' does not exist in one of the dictionaries.")
+
+        if delimiter is None:
+            # Detect the delimiter if not provided (based on first dictionary entry)
+            delimiter = detect_delimiter(pd.Series([item[column] for item in df]))
+            if delimiter is None:
+                raise ValueError("No delimiter detected and none provided.")
+
+        # Split each dictionary's column value based on the delimiter
+        for item in df:
+            item[column] = item[column].split(delimiter)
+
+        return df
+
+    # If input is a dictionary of lists
     elif isinstance(df, dict):
-        df_converted = pd.DataFrame.from_dict(df)
+        if column not in df:
+            raise ValueError(f"Column '{column}' does not exist in the dictionary.")
+
+        if delimiter is None:
+            # Detect the delimiter if not provided
+            delimiter = detect_delimiter(pd.Series(df[column]))
+            if delimiter is None:
+                raise ValueError("No delimiter detected and none provided.")
+
+        # Split each column's list value based on the delimiter
+        df[column] = [value.split(delimiter) for value in df[column]]
+
+        return df
+
+    # If input is a tuple
+    elif isinstance(df, tuple):
+        df_converted = list(df)
+
+        if len(df_converted) <= 1:
+            raise ValueError("Tuple must have more than one item to split.")
+
+        if delimiter is None:
+            # Detect the delimiter if not provided (based on the first item in the tuple)
+            delimiter = detect_delimiter(pd.Series(df_converted))
+            if delimiter is None:
+                raise ValueError("No delimiter detected and none provided.")
+
+        # Split each element based on the delimiter
+        for i in range(len(df_converted)):
+            df_converted[i] = df_converted[i].split(delimiter)
+
+        return tuple(tuple(x) for x in df_converted)
+
+    # If input is a string (assuming JSON-like string)
     elif isinstance(df, str):
         try:
             parsed_data = json.loads(df)
             if isinstance(parsed_data, dict):
-                df_converted = pd.DataFrame.from_dict(parsed_data)
+                return split_column(parsed_data, column, delimiter)
             else:
                 raise ValueError("String input must be valid JSON representing an object.")
         except json.JSONDecodeError:
             raise ValueError("String input must be valid JSON representing an object.")
+
+    # If input is of an unsupported type
     else:
         raise TypeError("Unsupported data type. Please provide a DataFrame, list, tuple, dict, or JSON string.")
 
-    # Validate input
-    if column not in df_converted.columns:
-        raise ValueError(f"Column '{column}' does not exist in the DataFrame.")
 
-    if delimiter is None:
-        # Detect the delimiter if not provided
-        delimiter = detect_delimiter(df_converted[column])
-        if delimiter is None:
-            raise ValueError("No delimiter detected and none provided.")
-    else:
-        # If the user provides a delimiter, use it regardless of the predefined list
-        if not isinstance(delimiter, str) or len(delimiter) == 0:
-            raise ValueError("Provided delimiter must be a non-empty string.")
-
-    # Split the column based on the delimiter
-    expanded_columns = df_converted[column].str.split(delimiter, expand=True)
-
-    # Remove any columns that are entirely NaN (i.e., extra columns)
-    expanded_columns = expanded_columns.dropna(how='all', axis=1)
-
-    # Drop the original column and concatenate the new columns
-    df_expanded = df_converted.drop(columns=[column]).join(expanded_columns)
-
-    # Rename new columns with a suffix to identify them
-    df_expanded.columns = list(df_expanded.columns[:-len(expanded_columns.columns)]) + \
-                          [f"{column}_{i+1}" for i in range(len(expanded_columns.columns))]
-
-    # Convert back to the original format if necessary
-    if original_format == pd.DataFrame:
-        return df_expanded
-    elif original_format == list:
-        return df_expanded.values.tolist()
-    elif original_format == tuple:
-        return tuple(map(tuple, df_expanded.values))
-    elif original_format == dict:
-        return df_expanded.to_dict(orient="list")
-    elif original_format == str:
-        return df_expanded.to_json()
-    else:
-        return df_expanded
 
 
 
@@ -903,7 +1052,7 @@ def detect_invalid_dates(series, date_format=None):
         return pd.to_datetime(series, format=date_format, errors='coerce').isna()
     else:
         return pd.to_datetime(series, errors='coerce').isna()
-    
+
 @log_function_call
 @track_changes
 
@@ -927,15 +1076,97 @@ def detect_errors(
     Returns:
     - pd.DataFrame: A DataFrame listing detected errors.
     """
-    # Convert input to DataFrame if necessary
-    original_format = type(df)
+    # Handle the input type without converting to DataFrame
 
+    errors = []
+
+    # Default to American English dictionary
+    spellcheck_dict = 'en_US'
+
+    # Check for invalid dates if date_columns is provided
     if isinstance(df, pd.DataFrame):
-        df_converted = df
+        if date_columns:
+            for col in date_columns:
+                if col in df.columns:
+                    invalid_dates = detect_invalid_dates(df[col], date_format=date_format)
+                    for idx in invalid_dates[invalid_dates].index:
+                        errors.append({'Column': col, 'Error Type': 'Invalid Date', 'Value': df.at[idx, col]})
+
+        # Check for invalid numeric formats if numeric_columns is provided
+        if numeric_columns:
+            for col in numeric_columns:
+                if col in df.columns:
+                    non_numeric = pd.to_numeric(df[col], errors='coerce').isna() & df[col].notna()
+                    for idx in non_numeric[non_numeric].index:
+                        errors.append({'Column': col, 'Error Type': 'Invalid Numeric', 'Value': df.at[idx, col]})
+
+        # Spell check on text columns if text_columns is provided
+        if text_columns:
+            misspelled_words = spell_check_dataframe(df, dictionary=spellcheck_dict, columns=text_columns)
+            for col, words in misspelled_words.items():
+                for word in words:
+                    indices = df[col].apply(lambda x: word in x if isinstance(x, str) else False)
+                    for idx in indices[indices].index:
+                        errors.append({'Column': col, 'Error Type': 'Misspelled Word', 'Value': word})
+
     elif isinstance(df, (list, tuple, np.ndarray)):
+        # Convert list, tuple, or ndarray to DataFrame for processing
         df_converted = pd.DataFrame(df)
+
+        # Check for invalid dates if date_columns is provided
+        if date_columns:
+            for col in date_columns:
+                if col in df_converted.columns:
+                    invalid_dates = detect_invalid_dates(df_converted[col], date_format=date_format)
+                    for idx in invalid_dates[invalid_dates].index:
+                        errors.append({'Column': col, 'Error Type': 'Invalid Date', 'Value': df_converted.at[idx, col]})
+
+        # Check for invalid numeric formats if numeric_columns is provided
+        if numeric_columns:
+            for col in numeric_columns:
+                if col in df_converted.columns:
+                    non_numeric = pd.to_numeric(df_converted[col], errors='coerce').isna() & df_converted[col].notna()
+                    for idx in non_numeric[non_numeric].index:
+                        errors.append({'Column': col, 'Error Type': 'Invalid Numeric', 'Value': df_converted.at[idx, col]})
+
+        # Spell check on text columns if text_columns is provided
+        if text_columns:
+            misspelled_words = spell_check_dataframe(df_converted, dictionary=spellcheck_dict, columns=text_columns)
+            for col, words in misspelled_words.items():
+                for word in words:
+                    indices = df_converted[col].apply(lambda x: word in x if isinstance(x, str) else False)
+                    for idx in indices[indices].index:
+                        errors.append({'Column': col, 'Error Type': 'Misspelled Word', 'Value': word})
+
     elif isinstance(df, dict):
+        # Convert dict to DataFrame for processing
         df_converted = pd.DataFrame.from_dict(df)
+
+        # Check for invalid dates if date_columns is provided
+        if date_columns:
+            for col in date_columns:
+                if col in df_converted.columns:
+                    invalid_dates = detect_invalid_dates(df_converted[col], date_format=date_format)
+                    for idx in invalid_dates[invalid_dates].index:
+                        errors.append({'Column': col, 'Error Type': 'Invalid Date', 'Value': df_converted.at[idx, col]})
+
+        # Check for invalid numeric formats if numeric_columns is provided
+        if numeric_columns:
+            for col in numeric_columns:
+                if col in df_converted.columns:
+                    non_numeric = pd.to_numeric(df_converted[col], errors='coerce').isna() & df_converted[col].notna()
+                    for idx in non_numeric[non_numeric].index:
+                        errors.append({'Column': col, 'Error Type': 'Invalid Numeric', 'Value': df_converted.at[idx, col]})
+
+        # Spell check on text columns if text_columns is provided
+        if text_columns:
+            misspelled_words = spell_check_dataframe(df_converted, dictionary=spellcheck_dict, columns=text_columns)
+            for col, words in misspelled_words.items():
+                for word in words:
+                    indices = df_converted[col].apply(lambda x: word in x if isinstance(x, str) else False)
+                    for idx in indices[indices].index:
+                        errors.append({'Column': col, 'Error Type': 'Misspelled Word', 'Value': word})
+
     elif isinstance(df, str):
         try:
             parsed_data = json.loads(df)
@@ -945,55 +1176,41 @@ def detect_errors(
                 raise ValueError("String input must be valid JSON representing an object.")
         except json.JSONDecodeError:
             raise ValueError("String input must be valid JSON representing an object.")
+
+        # Check for invalid dates if date_columns is provided
+        if date_columns:
+            for col in date_columns:
+                if col in df_converted.columns:
+                    invalid_dates = detect_invalid_dates(df_converted[col], date_format=date_format)
+                    for idx in invalid_dates[invalid_dates].index:
+                        errors.append({'Column': col, 'Error Type': 'Invalid Date', 'Value': df_converted.at[idx, col]})
+
+        # Check for invalid numeric formats if numeric_columns is provided
+        if numeric_columns:
+            for col in numeric_columns:
+                if col in df_converted.columns:
+                    non_numeric = pd.to_numeric(df_converted[col], errors='coerce').isna() & df_converted[col].notna()
+                    for idx in non_numeric[non_numeric].index:
+                        errors.append({'Column': col, 'Error Type': 'Invalid Numeric', 'Value': df_converted.at[idx, col]})
+
+        # Spell check on text columns if text_columns is provided
+        if text_columns:
+            misspelled_words = spell_check_dataframe(df_converted, dictionary=spellcheck_dict, columns=text_columns)
+            for col, words in misspelled_words.items():
+                for word in words:
+                    indices = df_converted[col].apply(lambda x: word in x if isinstance(x, str) else False)
+                    for idx in indices[indices].index:
+                        errors.append({'Column': col, 'Error Type': 'Misspelled Word', 'Value': word})
+
     else:
         raise TypeError("Unsupported data type. Please provide a DataFrame, list, tuple, dict, or JSON string.")
-
-    errors = []
-
-    # Default to American English dictionary
-    spellcheck_dict = 'en_US'
-
-    # Check for invalid dates if date_columns is provided
-    if date_columns:
-        for col in date_columns:
-            if col in df_converted.columns:
-                invalid_dates = detect_invalid_dates(df_converted[col], date_format=date_format)
-                for idx in invalid_dates[invalid_dates].index:
-                    errors.append({'Column': col, 'Error Type': 'Invalid Date', 'Value': df_converted.at[idx, col]})
-
-    # Check for invalid numeric formats if numeric_columns is provided
-    if numeric_columns:
-        for col in numeric_columns:
-            if col in df_converted.columns:
-                non_numeric = pd.to_numeric(df_converted[col], errors='coerce').isna() & df_converted[col].notna()
-                for idx in non_numeric[non_numeric].index:
-                    errors.append({'Column': col, 'Error Type': 'Invalid Numeric', 'Value': df_converted.at[idx, col]})
-
-    # Spell check on text columns if text_columns is provided
-    if text_columns:
-        misspelled_words = spell_check_dataframe(df_converted, dictionary=spellcheck_dict, columns=text_columns)
-        for col, words in misspelled_words.items():
-            for word in words:
-                indices = df_converted[col].apply(lambda x: word in x if isinstance(x, str) else False)
-                for idx in indices[indices].index:
-                    errors.append({'Column': col, 'Error Type': 'Misspelled Word', 'Value': word})
 
     # Convert result to a DataFrame
     errors_df = pd.DataFrame(errors)
 
-    # Return the errors in original format if necessary
-    if original_format == pd.DataFrame:
-        return errors_df
-    elif original_format == list:
-        return errors_df.to_dict('records')
-    elif original_format == tuple:
-        return tuple(errors_df.to_dict('records'))
-    elif original_format == dict:
-        return errors_df.to_dict(orient='list')
-    elif original_format == str:
-        return errors_df.to_json()
-    else:
-        return errors_df
+    # Return the errors in DataFrame format
+    return errors_df
+
 
 
 
@@ -1010,7 +1227,7 @@ from typing import Union, Optional, List
 def convert_type(
     df: Union[pd.DataFrame, pd.Series, list, dict, tuple, np.ndarray, str],
     columns: Optional[Union[str, List[str]]] = None
-) -> Union[pd.DataFrame, pd.Series]:
+) -> Union[pd.DataFrame, pd.Series, list, dict, tuple, str]:
     """
     Recommend and apply data type conversions for a given DataFrame, Series, or other supported formats.
 
@@ -1019,44 +1236,8 @@ def convert_type(
     - columns (str, list of str, or None): The specific column(s) to analyze. If None, the function analyzes all columns.
 
     Returns:
-    - pd.DataFrame or pd.Series: The data with applied type conversions.
+    - pd.DataFrame, pd.Series, list, dict, tuple, or str: The data with applied type conversions.
     """
-    # Convert input to DataFrame or Series
-    original_format = type(df)
-
-    if isinstance(df, pd.DataFrame) or isinstance(df, pd.Series):
-        df_converted = df
-    elif isinstance(df, (list, tuple, np.ndarray)):
-        df_converted = pd.DataFrame(df)
-    elif isinstance(df, dict):
-        df_converted = pd.DataFrame.from_dict(df)
-    elif isinstance(df, str):
-        try:
-            parsed_data = json.loads(df)
-            if isinstance(parsed_data, dict):
-                df_converted = pd.DataFrame.from_dict(parsed_data)
-            else:
-                raise ValueError("String input must be valid JSON representing an object.")
-        except json.JSONDecodeError:
-            raise ValueError("String input must be valid JSON representing an object.")
-    else:
-        raise TypeError("Unsupported data type. Please provide a DataFrame, Series, list, dict, tuple, or JSON string.")
-
-    # If a single column is provided as a string, convert it to a list
-    if isinstance(columns, str):
-        columns = [columns]
-
-    # If columns are provided, ensure they exist in the DataFrame
-    if columns:
-        for column in columns:
-            if column not in df_converted.columns:
-                raise ValueError(f"Column '{column}' does not exist in the DataFrame.")
-        data_to_analyze = df_converted[columns]
-    else:
-        data_to_analyze = df_converted
-
-    recommendations = {}
-
     # Helper function to suggest data type conversions
     def suggest_conversion(col):
         suggestions = []
@@ -1092,51 +1273,150 @@ def convert_type(
 
         return suggestions
 
-    # Analyze each column
-    for col_name, col_data in data_to_analyze.items():
-        current_dtype = col_data.dtype
-        suggestions = suggest_conversion(col_data)
+    # Handling different input types separately
+    if isinstance(df, pd.DataFrame):
+        recommendations = {}
+
+        # If columns are provided, ensure they exist in the DataFrame
+        if columns:
+            for column in columns:
+                if column not in df.columns:
+                    raise ValueError(f"Column '{column}' does not exist in the DataFrame.")
+            data_to_analyze = df[columns]
+        else:
+            data_to_analyze = df
+
+        # Analyze each column
+        for col_name, col_data in data_to_analyze.items():
+            current_dtype = col_data.dtype
+            suggestions = suggest_conversion(col_data)
+
+            if suggestions:
+                recommendations[col_name] = {
+                    'current_dtype': current_dtype,
+                    'suggestions': suggestions
+                }
+
+        # Display recommendations and apply user-selected conversions
+        for col_name, rec in recommendations.items():
+            print(f"\nColumn: {col_name}")
+            print(f"Current Data Type: {rec['current_dtype']}")
+            print(f"Recommended Conversions: {', '.join(rec['suggestions'])}")
+
+            # Apply suggested conversions based on user confirmation
+            for suggestion in rec['suggestions']:
+                # Auto-confirmation for this example; replace with interactive input in production if needed.
+                user_input = "yes"  # Simulate user input for testing
+                if user_input.lower() == 'yes':
+                    if suggestion == 'Convert to integer':
+                        df[col_name] = pd.to_numeric(df[col_name], errors='coerce').fillna(0).astype(int)
+                    elif suggestion == 'Convert to numeric':
+                        df[col_name] = pd.to_numeric(df[col_name], errors='coerce')
+                    elif suggestion == 'Convert to category':
+                        df[col_name] = df[col_name].astype('category')
+                    elif suggestion == 'Convert to datetime':
+                        df[col_name] = pd.to_datetime(df[col_name], errors='coerce')
+                    print(f"Column '{col_name}' converted to {df[col_name].dtype}.")
+                else:
+                    print(f"Column '{col_name}' not converted.")
+
+        return df
+
+    elif isinstance(df, pd.Series):
+        recommendations = []
+        current_dtype = df.dtype
+        suggestions = suggest_conversion(df)
 
         if suggestions:
-            recommendations[col_name] = {
+            recommendations = {
                 'current_dtype': current_dtype,
                 'suggestions': suggestions
             }
 
-    # Display recommendations and apply user-selected conversions
-    for col_name, rec in recommendations.items():
-        print(f"\nColumn: {col_name}")
-        print(f"Current Data Type: {rec['current_dtype']}")
-        print(f"Recommended Conversions: {', '.join(rec['suggestions'])}")
-
-        # Apply suggested conversions based on user confirmation
-        for suggestion in rec['suggestions']:
-            # Auto-confirmation for this example; replace with interactive input in production if needed.
+        # Display recommendations and apply user-selected conversions
+        for rec in recommendations.get('suggestions', []):
             user_input = "yes"  # Simulate user input for testing
             if user_input.lower() == 'yes':
-                if suggestion == 'Convert to integer':
-                    df_converted[col_name] = pd.to_numeric(df_converted[col_name], errors='coerce').fillna(0).astype(int)
-                elif suggestion == 'Convert to numeric':
-                    df_converted[col_name] = pd.to_numeric(df_converted[col_name], errors='coerce')
-                elif suggestion == 'Convert to category':
-                    df_converted[col_name] = df_converted[col_name].astype('category')
-                elif suggestion == 'Convert to datetime':
-                    df_converted[col_name] = pd.to_datetime(df_converted[col_name], errors='coerce')
-                print(f"Column '{col_name}' converted to {df_converted[col_name].dtype}.")
+                if rec == 'Convert to integer':
+                    df = pd.to_numeric(df, errors='coerce').fillna(0).astype(int)
+                elif rec == 'Convert to numeric':
+                    df = pd.to_numeric(df, errors='coerce')
+                elif rec == 'Convert to category':
+                    df = df.astype('category')
+                elif rec == 'Convert to datetime':
+                    df = pd.to_datetime(df, errors='coerce')
+                print(f"Series converted to {df.dtype}.")
             else:
-                print(f"Column '{col_name}' not converted.")
+                print(f"Series not converted.")
 
-    # Convert back to the original format if necessary
-    if original_format == list:
-        return df_converted.to_dict(orient='records')
-    elif original_format == tuple:
-        return tuple(df_converted.to_dict(orient='records'))
-    elif original_format == dict:
-        return df_converted.to_dict(orient='list')
-    elif original_format == str:
-        return df_converted.to_json()
+        return df
+
+    elif isinstance(df, list):
+        recommendations = suggest_conversion(pd.Series(df))
+
+        # Display recommendations and apply user-selected conversions
+        for rec in recommendations:
+            user_input = "yes"  # Simulate user input for testing
+            if user_input.lower() == 'yes':
+                df = pd.to_numeric(df, errors='coerce').fillna(0).astype(int)
+                print("List converted to integer.")
+            else:
+                print("List not converted.")
+
+        return df
+
+    elif isinstance(df, tuple):
+        recommendations = suggest_conversion(pd.Series(df))
+
+        # Display recommendations and apply user-selected conversions
+        for rec in recommendations:
+            user_input = "yes"  # Simulate user input for testing
+            if user_input.lower() == 'yes':
+                df = tuple(pd.to_numeric(df, errors='coerce').fillna(0).astype(int))
+                print("Tuple converted to integer.")
+            else:
+                print("Tuple not converted.")
+
+        return df
+
+    elif isinstance(df, np.ndarray):
+        recommendations = suggest_conversion(pd.Series(df))
+
+        # Display recommendations and apply user-selected conversions
+        for rec in recommendations:
+            user_input = "yes"  # Simulate user input for testing
+            if user_input.lower() == 'yes':
+                df = pd.to_numeric(df, errors='coerce').fillna(0).astype(int)
+                print("Array converted to integer.")
+            else:
+                print("Array not converted.")
+
+        return df
+
+    elif isinstance(df, str):
+        try:
+            parsed_data = json.loads(df)
+            if isinstance(parsed_data, dict):
+                recommendations = suggest_conversion(pd.DataFrame.from_dict(parsed_data))
+
+                # Display recommendations and apply user-selected conversions
+                for rec in recommendations:
+                    user_input = "yes"  # Simulate user input for testing
+                    if user_input.lower() == 'yes':
+                        parsed_data = json.dumps(parsed_data)
+                        print("String converted to JSON.")
+                    else:
+                        print("String not converted.")
+            else:
+                raise ValueError("String input must be valid JSON representing an object.")
+        except json.JSONDecodeError:
+            raise ValueError("String input must be valid JSON representing an object.")
+
+        return parsed_data
+
     else:
-        return df_converted
+        raise TypeError("Unsupported data type. Please provide a DataFrame, Series, list, dict, tuple, or JSON string.")
+
 
 
 
@@ -1154,128 +1434,182 @@ from typing import Union, List
 @log_function_call
 @track_changes
 
-
 def detect_outliers(
-    df: Union[pd.DataFrame, pd.Series, list, dict, tuple, np.ndarray, str],
-    columns: Union[str, List[str]],
-    method: str = 'iqr',
-    threshold: float = 1.5,
-    handle_missing: bool = True,
-    anomaly_method: Optional[str] = None,
-    contamination: float = 0.05,
-    n_neighbors: int = 20,
-    eps: float = 0.5,
-    min_samples: int = 5
-) -> pd.DataFrame:
+    df,
+    columns,
+    method='iqr',
+    threshold=1.5,
+    handle_missing=True,
+    anomaly_method=None,
+    contamination=0.05,
+    n_neighbors=20,
+    eps=0.5,
+    min_samples=5
+):
     """
     Detects outliers or anomalies in specified columns using IQR, Z-Score, or anomaly detection methods.
 
     Parameters:
-    - df (Union[pd.DataFrame, pd.Series, list, dict, tuple, np.ndarray, str]): Input data in various formats.
-    - columns (Union[str, List[str]]): Column name(s) to detect outliers/anomalies.
-    - method (str): Method for outlier detection ('iqr' or 'z-score'). Default is 'iqr'.
-    - threshold (float): Threshold for detection (1.5 for IQR, 3 for Z-Score). Default is 1.5.
-    - handle_missing (bool): Remove rows with missing data if True. Default is True.
-    - anomaly_method (Optional[str]): 'isolation_forest', 'lof', or 'dbscan' for anomaly detection.
-    - contamination (float): Proportion of anomalies for 'isolation_forest' and 'lof'. Default is 0.05.
+    - df (DataFrame, Series, list, dict, tuple, np.ndarray, str): The data to analyze.
+    - columns (str or list): The column name or list of column names to detect outliers/anomalies.
+    - method (str): The method to use ('iqr' for Interquartile Range or 'z-score' for Z-Score). Default is 'iqr'.
+    - threshold (float): The threshold for outlier detection. Default is 1.5 for IQR and 3 for Z-Score.
+    - handle_missing (bool): If True, handles missing values by removing rows with missing data.
+    - anomaly_method (str): Specify 'isolation_forest', 'lof', or 'dbscan' for anomaly detection methods.
+    - contamination (float): The proportion of anomalies for 'isolation_forest' and 'lof'. Default is 0.05.
     - n_neighbors (int): Number of neighbors for LOF. Default is 20.
-    - eps (float): Maximum distance for DBSCAN. Default is 0.5.
-    - min_samples (int): Minimum samples for DBSCAN. Default is 5.
+    - eps (float): The maximum distance between samples for DBSCAN. Default is 0.5.
+    - min_samples (int): The minimum number of samples in a neighborhood for DBSCAN. Default is 5.
 
     Returns:
-    - pd.DataFrame: A DataFrame with outliers removed.
+    - The processed data with outliers removed, in the original data format.
     """
-    # Convert input to DataFrame
-    original_format = type(df)
-    if isinstance(df, pd.DataFrame) or isinstance(df, pd.Series):
-        df_cleaned = df
-    elif isinstance(df, (list, tuple, np.ndarray)):
-        df_cleaned = pd.DataFrame(df)
+    # Detect if input is DataFrame, Series, List, Tuple, Dict, or String
+    if isinstance(df, pd.DataFrame):
+        data_type = 'DataFrame'
+    elif isinstance(df, pd.Series):
+        data_type = 'Series'
+    elif isinstance(df, (list, tuple)):
+        data_type = 'list/tuple'
     elif isinstance(df, dict):
-        df_cleaned = pd.DataFrame.from_dict(df)
+        data_type = 'dict'
     elif isinstance(df, str):
-        try:
-            parsed_data = json.loads(df)
-            if isinstance(parsed_data, dict):
-                df_cleaned = pd.DataFrame.from_dict(parsed_data)
-            else:
-                raise ValueError("String input must be valid JSON representing an object.")
-        except json.JSONDecodeError:
-            raise ValueError("String input must be valid JSON representing an object.")
+        data_type = 'str'
+    elif isinstance(df, np.ndarray):
+        data_type = 'ndarray'
     else:
-        raise TypeError("Unsupported data type. Please provide a DataFrame, Series, list, dict, tuple, or JSON string.")
+        raise ValueError(f"Unsupported data type: {type(df)}")
 
-    # Ensure `columns` is a list for uniform processing
+    # Ensure columns is a list
     if isinstance(columns, str):
         columns = [columns]
 
-    # Check for column existence
-    for column in columns:
-        if column not in df_cleaned.columns:
-            raise ValueError(f"Column '{column}' not found in the DataFrame.")
-
-    # Validate method or anomaly detection choice
-    if method not in ['iqr', 'z-score'] and anomaly_method not in ['isolation_forest', 'lof', 'dbscan', None]:
-        raise ValueError("Invalid method or anomaly detection method.")
-
-    # Handle missing values
-    original_shape = df_cleaned.shape
+    # Handle missing values, depending on the type
     if handle_missing:
-        df_cleaned = df_cleaned.dropna(subset=columns)
+        if data_type == 'DataFrame':
+            df_shape_before = df.shape
+            df = df.dropna(subset=columns)
+        elif data_type == 'Series':
+            df_shape_before = df.shape
+            df = df.dropna()
+        elif data_type in ['list/tuple', 'ndarray']:
+            df_shape_before = len(df)
+            df = [item for item in df if item is not None]
+        elif data_type == 'dict':
+            df_shape_before = len(df)
+            df = {key: value for key, value in df.items() if value is not None}
+        elif data_type == 'str':
+            df_shape_before = len(df)
+            df = df.strip()  # Strip any surrounding whitespace from string
 
-    # Initialize mask for combined outliers
-    combined_outliers = np.zeros(df_cleaned.shape[0], dtype=bool)
+    # Initialize mask for outliers
+    combined_outliers = np.zeros(len(df), dtype=bool)
 
-    # Outlier detection
     for column in columns:
+        if data_type == 'DataFrame' or data_type == 'Series':
+            if column not in df.columns:
+                raise ValueError(f"Column '{column}' not found in the DataFrame.")
+        elif data_type in ['list/tuple', 'ndarray', 'dict']:
+            # Handle different data structures that don't have columns (i.e., for list/tuple/dict)
+            if isinstance(column, int):  # Handle case if column is an index for list/tuple/ndarray
+                if data_type == 'list/tuple' and column >= len(df):
+                    raise ValueError(f"Index '{column}' is out of bounds for the data.")
+            elif isinstance(column, str) and column not in df:
+                raise ValueError(f"Key '{column}' not found in the data.")
+
+        # Outlier detection logic (IQR, Z-Score, or anomaly methods)
         if anomaly_method is None:
             outlier_type = "outliers"
             if method == 'iqr':
-                Q1 = df_cleaned[column].quantile(0.25)
-                Q3 = df_cleaned[column].quantile(0.75)
+                if data_type == 'DataFrame':
+                    Q1 = df[column].quantile(0.25)
+                    Q3 = df[column].quantile(0.75)
+                elif data_type == 'Series':
+                    Q1 = df.quantile(0.25)
+                    Q3 = df.quantile(0.75)
                 IQR = Q3 - Q1
                 lower_bound = Q1 - threshold * IQR
                 upper_bound = Q3 + threshold * IQR
-                outliers = (df_cleaned[column] < lower_bound) | (df_cleaned[column] > upper_bound)
+                if data_type == 'DataFrame':
+                    outliers = (df[column] < lower_bound) | (df[column] > upper_bound)
+                elif data_type == 'Series':
+                    outliers = (df < lower_bound) | (df > upper_bound)
             elif method == 'z-score':
-                mean = df_cleaned[column].mean()
-                std = df_cleaned[column].std()
-                z_scores = (df_cleaned[column] - mean) / std
-                outliers = np.abs(z_scores) > threshold
+                if data_type == 'DataFrame':
+                    mean = df[column].mean()
+                    std = df[column].std()
+                    z_scores = (df[column] - mean) / std
+                    outliers = np.abs(z_scores) > threshold
+                elif data_type == 'Series':
+                    mean = df.mean()
+                    std = df.std()
+                    z_scores = (df - mean) / std
+                    outliers = np.abs(z_scores) > threshold
         else:
             outlier_type = "anomalies"
             if anomaly_method == 'isolation_forest':
                 model = IsolationForest(contamination=contamination, random_state=42)
-                outliers = model.fit_predict(df_cleaned[[column]]) == -1
+                if data_type == 'DataFrame':
+                    outliers = model.fit_predict(df[[column]]) == -1
+                elif data_type == 'Series':
+                    outliers = model.fit_predict(df.values.reshape(-1, 1)) == -1
+                elif data_type in ['list/tuple', 'ndarray']:
+                    outliers = model.fit_predict(np.array(df).reshape(-1, 1)) == -1
             elif anomaly_method == 'lof':
                 lof_model = LocalOutlierFactor(n_neighbors=n_neighbors, contamination=contamination)
-                outliers = lof_model.fit_predict(df_cleaned[[column]]) == -1
+                if data_type == 'DataFrame':
+                    outliers = lof_model.fit_predict(df[[column]]) == -1
+                elif data_type == 'Series':
+                    outliers = lof_model.fit_predict(df.values.reshape(-1, 1)) == -1
+                elif data_type in ['list/tuple', 'ndarray']:
+                    outliers = lof_model.fit_predict(np.array(df).reshape(-1, 1)) == -1
             elif anomaly_method == 'dbscan':
                 dbscan_model = DBSCAN(eps=eps, min_samples=min_samples)
-                outliers = dbscan_model.fit_predict(df_cleaned[[column]]) == -1
+                if data_type == 'DataFrame':
+                    outliers = dbscan_model.fit_predict(df[[column]]) == -1
+                elif data_type == 'Series':
+                    outliers = dbscan_model.fit_predict(df.values.reshape(-1, 1)) == -1
+                elif data_type in ['list/tuple', 'ndarray']:
+                    outliers = dbscan_model.fit_predict(np.array(df).reshape(-1, 1)) == -1
             else:
                 raise ValueError(f"Anomaly method '{anomaly_method}' is not supported.")
 
         combined_outliers |= outliers
-        print(f"Total {outlier_type} detected in column '{column}': {np.sum(outliers)}")
 
-    # Remove detected outliers
-    df_cleaned = df_cleaned[~combined_outliers]
+        num_outliers = np.sum(outliers)
+        print(f"Total number of {outlier_type} detected in column '{column}': {num_outliers}")
 
-    # Print original and new data shapes
-    print(f"Original shape: {original_shape}, After removing {outlier_type}: {df_cleaned.shape}")
+    # Remove all detected outliers
+    if data_type == 'DataFrame':
+        df_cleaned = df[~combined_outliers]
+    elif data_type == 'Series':
+        df_cleaned = df[~combined_outliers]
+    elif data_type in ['list/tuple', 'ndarray']:
+        df_cleaned = [item for i, item in enumerate(df) if not combined_outliers[i]]
+    elif data_type == 'dict':
+        df_cleaned = {key: value for i, (key, value) in enumerate(df.items()) if not combined_outliers[i]}
+    elif data_type == 'str':
+        df_cleaned = df  # No removal for string types, but can adjust based on use case
 
-    # Convert back to the original format if applicable
-    if original_format == list:
-        return df_cleaned.to_dict(orient='records')
-    elif original_format == tuple:
-        return tuple(df_cleaned.to_dict(orient='records'))
-    elif original_format == dict:
-        return df_cleaned.to_dict(orient='list')
-    elif original_format == str:
-        return df_cleaned.to_json()
-    else:
-        return df_cleaned
+    # Print original and final data shape or size
+    if data_type == 'DataFrame':
+        print(f"Original data shape: {df_shape_before}")
+        print(f"Data shape after removing {outlier_type}: {df_cleaned.shape}")
+    elif data_type == 'Series':
+        print(f"Original data size: {df_shape_before}")
+        print(f"Data size after removing {outlier_type}: {df_cleaned.size}")
+    elif data_type in ['list/tuple', 'ndarray']:
+        print(f"Original data size: {df_shape_before}")
+        print(f"Data size after removing {outlier_type}: {len(df_cleaned)}")
+    elif data_type == 'dict':
+        print(f"Original data size: {df_shape_before}")
+        print(f"Data size after removing {outlier_type}: {len(df_cleaned)}")
+    elif data_type == 'str':
+        print(f"Original data size: {df_shape_before}")
+        print(f"Data size after removal (string type unchanged): {len(df_cleaned)}")
+
+    return df_cleaned
+
     
 
 
@@ -1419,82 +1753,178 @@ def reformat(
     # Detect original data format
     original_format = type(df)
 
-    # Convert to DataFrame for uniform processing if the input is not already a DataFrame or Series
-    if isinstance(df, pd.DataFrame) or isinstance(df, pd.Series):
-        data_cleaned = df
-    elif isinstance(df, (list, tuple)):
-        data_cleaned = pd.DataFrame(df)
+    # Handle different data types separately without converting them to DataFrame
+    if isinstance(df, pd.DataFrame):
+        if target_column not in df.columns:
+            raise ValueError(f"Column '{target_column}' does not exist in the DataFrame.")
+        if reference_column not in df.columns:
+            raise ValueError(f"Column '{reference_column}' does not exist in the DataFrame.")
+        ref_dtype = df[reference_column].dtype
+
+        # Check and apply formatting based on data type
+        if pd.api.types.is_datetime64_any_dtype(ref_dtype):
+            try:
+                df[target_column] = pd.to_datetime(df[target_column], errors='coerce')
+            except Exception as e:
+                raise TypeError(f"Error converting '{target_column}' to datetime: {e}")
+        elif pd.api.types.is_numeric_dtype(ref_dtype):
+            try:
+                df[target_column] = pd.to_numeric(df[target_column], errors='coerce')
+            except Exception as e:
+                raise TypeError(f"Error converting '{target_column}' to numeric: {e}")
+        elif pd.api.types.is_string_dtype(ref_dtype):
+            ref_sample = df[reference_column].dropna().astype(str).iloc[0]
+            if ref_sample.isupper():
+                df[target_column] = df[target_column].astype(str).str.upper()
+            elif ref_sample.islower():
+                df[target_column] = df[target_column].astype(str).str.lower()
+            elif ref_sample.istitle():
+                df[target_column] = df[target_column].astype(str).str.title()
+            else:
+                df[target_column] = df[target_column].astype(str)
+
+        return df
+
+    elif isinstance(df, pd.Series):
+        if target_column not in df.index:
+            raise ValueError(f"Column '{target_column}' does not exist in the Series.")
+        if reference_column not in df.index:
+            raise ValueError(f"Column '{reference_column}' does not exist in the Series.")
+        ref_dtype = df[reference_column].dtype
+
+        if pd.api.types.is_datetime64_any_dtype(ref_dtype):
+            try:
+                df[target_column] = pd.to_datetime(df[target_column], errors='coerce')
+            except Exception as e:
+                raise TypeError(f"Error converting '{target_column}' to datetime: {e}")
+        elif pd.api.types.is_numeric_dtype(ref_dtype):
+            try:
+                df[target_column] = pd.to_numeric(df[target_column], errors='coerce')
+            except Exception as e:
+                raise TypeError(f"Error converting '{target_column}' to numeric: {e}")
+        elif pd.api.types.is_string_dtype(ref_dtype):
+            ref_sample = df[reference_column].dropna().astype(str).iloc[0]
+            if ref_sample.isupper():
+                df[target_column] = df[target_column].astype(str).str.upper()
+            elif ref_sample.islower():
+                df[target_column] = df[target_column].astype(str).str.lower()
+            elif ref_sample.istitle():
+                df[target_column] = df[target_column].astype(str).str.title()
+            else:
+                df[target_column] = df[target_column].astype(str)
+
+        return df
+
+    elif isinstance(df, list):
+        if isinstance(df[0], dict):
+            if target_column not in df[0] or reference_column not in df[0]:
+                raise ValueError(f"Column '{target_column}' or '{reference_column}' does not exist in the list of dictionaries.")
+            ref_dtype = type(df[0][reference_column])
+
+            for item in df:
+                if ref_dtype == str:
+                    item[target_column] = str(item[target_column])
+                elif isinstance(item[reference_column], (int, float)):
+                    item[target_column] = float(item[target_column]) if isinstance(item[target_column], (int, float)) else float('nan')
+                elif isinstance(item[reference_column], bool):
+                    item[target_column] = bool(item[target_column])
+                elif isinstance(item[reference_column], pd.Timestamp):
+                    item[target_column] = pd.to_datetime(item[target_column], errors='coerce')
+
+            return df
+        else:
+            raise TypeError("List elements must be dictionaries or records.")
+
+    elif isinstance(df, tuple):
+        if isinstance(df[0], dict):
+            if target_column not in df[0] or reference_column not in df[0]:
+                raise ValueError(f"Column '{target_column}' or '{reference_column}' does not exist in the tuple of dictionaries.")
+            ref_dtype = type(df[0][reference_column])
+
+            result = []
+            for item in df:
+                if ref_dtype == str:
+                    item[target_column] = str(item[target_column])
+                elif isinstance(item[reference_column], (int, float)):
+                    item[target_column] = float(item[target_column]) if isinstance(item[target_column], (int, float)) else float('nan')
+                elif isinstance(item[reference_column], bool):
+                    item[target_column] = bool(item[target_column])
+                elif isinstance(item[reference_column], pd.Timestamp):
+                    item[target_column] = pd.to_datetime(item[target_column], errors='coerce')
+
+                result.append(item)
+            return tuple(result)
+        else:
+            raise TypeError("Tuple elements must be dictionaries or records.")
+
     elif isinstance(df, dict):
-        data_cleaned = pd.DataFrame.from_dict(df)
+        if target_column not in df or reference_column not in df:
+            raise ValueError(f"Column '{target_column}' or '{reference_column}' does not exist in the dictionary.")
+        ref_dtype = type(df[reference_column])
+
+        for key, value in df.items():
+            if isinstance(value, list):
+                for idx, item in enumerate(value):
+                    if isinstance(item, dict) and reference_column in item and target_column in item:
+                        if ref_dtype == str:
+                            item[target_column] = str(item[target_column])
+                        elif isinstance(item[reference_column], (int, float)):
+                            item[target_column] = float(item[target_column]) if isinstance(item[target_column], (int, float)) else float('nan')
+                        elif isinstance(item[reference_column], bool):
+                            item[target_column] = bool(item[target_column])
+                        elif isinstance(item[reference_column], pd.Timestamp):
+                            item[target_column] = pd.to_datetime(item[target_column], errors='coerce')
+
+        return df
+
     elif isinstance(df, np.ndarray):
-        data_cleaned = pd.DataFrame(df)
+        # Handle numpy arrays (assuming structured array for column access)
+        if target_column not in df.dtype.names or reference_column not in df.dtype.names:
+            raise ValueError(f"Column '{target_column}' or '{reference_column}' does not exist in the numpy array.")
+
+        ref_dtype = df[reference_column].dtype
+
+        if pd.api.types.is_datetime64_any_dtype(ref_dtype):
+            df[target_column] = pd.to_datetime(df[target_column], errors='coerce')
+        elif pd.api.types.is_numeric_dtype(ref_dtype):
+            df[target_column] = pd.to_numeric(df[target_column], errors='coerce')
+        elif pd.api.types.is_string_dtype(ref_dtype):
+            ref_sample = str(df[reference_column][0])
+            if ref_sample.isupper():
+                df[target_column] = np.char.upper(df[target_column])
+            elif ref_sample.islower():
+                df[target_column] = np.char.lower(df[target_column])
+            elif ref_sample.istitle():
+                df[target_column] = np.char.title(df[target_column])
+            else:
+                df[target_column] = np.char.mod('%s', df[target_column])
+
+        return df
+
     elif isinstance(df, str):
         try:
             parsed_data = json.loads(df)
             if isinstance(parsed_data, dict):
-                data_cleaned = pd.DataFrame.from_dict(parsed_data)
-            else:
-                raise ValueError("String input must represent a JSON object.")
+                if target_column not in parsed_data or reference_column not in parsed_data:
+                    raise ValueError(f"Column '{target_column}' or '{reference_column}' does not exist in the JSON string.")
+                ref_dtype = type(parsed_data[reference_column])
+                if ref_dtype == str:
+                    parsed_data[target_column] = str(parsed_data[target_column])
+                elif isinstance(parsed_data[reference_column], (int, float)):
+                    parsed_data[target_column] = float(parsed_data[target_column]) if isinstance(parsed_data[target_column], (int, float)) else float('nan')
+                elif isinstance(parsed_data[reference_column], bool):
+                    parsed_data[target_column] = bool(parsed_data[target_column])
+                elif isinstance(parsed_data[reference_column], pd.Timestamp):
+                    parsed_data[target_column] = pd.to_datetime(parsed_data[target_column], errors='coerce')
+
+                return json.dumps(parsed_data)
+
         except json.JSONDecodeError:
-            raise ValueError("String input must be valid JSON representing an object.")
+            raise ValueError("Invalid JSON string input.")
+
     else:
-        raise TypeError(f"Unsupported data type: {original_format}. Please provide a DataFrame, Series, list, dict, tuple, numpy array, or JSON string.")
+        raise TypeError(f"Unsupported data type: {type(df)}")
 
-    # Check if the target and reference columns exist in the DataFrame
-    if target_column not in data_cleaned.columns:
-        raise ValueError(f"Column '{target_column}' does not exist in the DataFrame.")
-    if reference_column not in data_cleaned.columns:
-        raise ValueError(f"Column '{reference_column}' does not exist in the DataFrame.")
-
-    # Get the data type of the reference column
-    ref_dtype = data_cleaned[reference_column].dtype
-
-    # Check and apply formatting based on data type
-    if pd.api.types.is_datetime64_any_dtype(ref_dtype):
-        # If the reference column is datetime, convert the target column to datetime
-        try:
-            data_cleaned[target_column] = pd.to_datetime(data_cleaned[target_column], errors='coerce')
-        except Exception as e:
-            raise TypeError(f"Error converting '{target_column}' to datetime: {e}")
-    elif pd.api.types.is_numeric_dtype(ref_dtype):
-        # If the reference column is numeric, convert the target column to numeric
-        try:
-            data_cleaned[target_column] = pd.to_numeric(data_cleaned[target_column], errors='coerce')
-        except Exception as e:
-            raise TypeError(f"Error converting '{target_column}' to numeric: {e}")
-    elif pd.api.types.is_string_dtype(ref_dtype):
-        # If the reference column is string, apply string formatting based on the reference column's format
-        ref_sample = data_cleaned[reference_column].dropna().astype(str).iloc[0]
-
-        if ref_sample.isupper():
-            # If reference column is uppercase, convert target column to uppercase
-            data_cleaned[target_column] = data_cleaned[target_column].astype(str).str.upper()
-        elif ref_sample.islower():
-            # If reference column is lowercase, convert target column to lowercase
-            data_cleaned[target_column] = data_cleaned[target_column].astype(str).str.lower()
-        elif ref_sample.istitle():
-            # If reference column is title case, convert target column to title case
-            data_cleaned[target_column] = data_cleaned[target_column].astype(str).str.title()
-        else:
-            # For other string formats, simply convert to string
-            data_cleaned[target_column] = data_cleaned[target_column].astype(str)
-    else:
-        # For unsupported data types, raise an error
-        raise TypeError(f"Data type '{ref_dtype}' of reference column is not supported for formatting.")
-
-    # Return the cleaned data in its original format
-    if original_format == list:
-        return data_cleaned.to_dict(orient='records')
-    elif original_format == tuple:
-        return tuple(data_cleaned.to_dict(orient='records'))
-    elif original_format == dict:
-        return data_cleaned.to_dict(orient='list')
-    elif original_format == str:
-        return data_cleaned.to_json()
-    elif original_format == np.ndarray:
-        return data_cleaned.to_numpy()
-    else:
-        return data_cleaned
 
 
 
@@ -1513,7 +1943,7 @@ from typing import Union, List, Optional
 @track_changes
 def scale_data(
     df: Union[pd.DataFrame, pd.Series, list, dict, tuple, str, np.ndarray],
-    columns: Union[str, List[str]],
+    columns: Union[str, List[str], None] = None,
     method: str = 'min-max'
 ) -> Union[pd.DataFrame, pd.Series, list, dict, tuple, str, np.ndarray]:
     """
@@ -1521,85 +1951,169 @@ def scale_data(
 
     Parameters:
     - df (Union[pd.DataFrame, pd.Series, list, dict, tuple, str, np.ndarray]): The input data.
-    - columns (str or list of str): The column name(s) to scale.
+    - columns (str or list of str, optional): The column name(s) to scale. If not specified, it will scale the entire content of lists or dict values.
     - method (str): The scaling method to use. Options are 'min-max', 'robust', and 'standard'.
 
     Returns:
     - Union[pd.DataFrame, pd.Series, list, dict, tuple, str, np.ndarray]: The scaled data.
-
-    Raises:
-    - ValueError: If the scaling method is not recognized.
     """
-
     # Detect original data format
     original_format = type(df)
 
-    # Convert to DataFrame for uniform processing if input is not already a DataFrame or Series
-    if isinstance(df, pd.DataFrame) or isinstance(df, pd.Series):
-        data_cleaned = df
-    elif isinstance(df, (list, tuple)):
-        data_cleaned = pd.DataFrame(df)
-    elif isinstance(df, dict):
-        data_cleaned = pd.DataFrame.from_dict(df)
-    elif isinstance(df, np.ndarray):
-        data_cleaned = pd.DataFrame(df)
-    elif isinstance(df, str):
-        try:
-            parsed_data = json.loads(df)
-            if isinstance(parsed_data, dict):
-                data_cleaned = pd.DataFrame.from_dict(parsed_data)
+    # Handle DataFrame input
+    if isinstance(df, pd.DataFrame):
+        # If a single column name is provided as a string, convert it to a list
+        if isinstance(columns, str):
+            columns = [columns]
+
+        for column in columns:
+            if column not in df.columns:
+                raise ValueError(f"Column '{column}' does not exist in the DataFrame.")
+
+            if method == 'min-max':
+                X = df[column]
+                X_min = X.min()
+                X_max = X.max()
+                df[column] = (X - X_min) / (X_max - X_min)
+
+            elif method == 'robust':
+                X = df[column]
+                median = X.median()
+                IQR = X.quantile(0.75) - X.quantile(0.25)
+                df[column] = (X - median) / IQR
+
+            elif method == 'standard':
+                X = df[column]
+                mean = X.mean()
+                std = X.std()
+                df[column] = (X - mean) / std
+
             else:
-                raise ValueError("String input must represent a JSON object.")
-        except json.JSONDecodeError:
-            raise ValueError("String input must be valid JSON representing an object.")
-    else:
-        raise TypeError(f"Unsupported data type: {original_format}. Please provide a DataFrame, Series, list, dict, tuple, numpy array, or JSON string.")
+                raise ValueError(f"Scaling method '{method}' is not recognized. Choose from 'min-max', 'robust', or 'standard'.")
 
-    # If a single column name is provided as a string, convert it to a list
-    if isinstance(columns, str):
-        columns = [columns]
+        return df
 
-    for column in columns:
-        if column not in data_cleaned.columns:
-            raise ValueError(f"Column '{column}' does not exist in the DataFrame.")
-
+    # Handle Series input
+    elif isinstance(df, pd.Series):
+        if isinstance(columns, list):
+            raise ValueError("For Series, 'columns' should not be specified.")
+        
         if method == 'min-max':
-            # Min-Max Scaling
-            X = data_cleaned[column]
+            X = df
             X_min = X.min()
             X_max = X.max()
-            data_cleaned[column] = (X - X_min) / (X_max - X_min)
+            return (X - X_min) / (X_max - X_min)
 
         elif method == 'robust':
-            # Robust Scaling
-            X = data_cleaned[column]
+            X = df
             median = X.median()
             IQR = X.quantile(0.75) - X.quantile(0.25)
-            data_cleaned[column] = (X - median) / IQR
+            return (X - median) / IQR
 
         elif method == 'standard':
-            # Standard Scaling
-            X = data_cleaned[column]
+            X = df
             mean = X.mean()
             std = X.std()
-            data_cleaned[column] = (X - mean) / std
+            return (X - mean) / std
 
         else:
             raise ValueError(f"Scaling method '{method}' is not recognized. Choose from 'min-max', 'robust', or 'standard'.")
 
-    # Return the cleaned data in its original format
-    if original_format == list:
-        return data_cleaned.to_dict(orient='records')
-    elif original_format == tuple:
-        return tuple(data_cleaned.to_dict(orient='records'))
-    elif original_format == dict:
-        return data_cleaned.to_dict(orient='list')
-    elif original_format == str:
-        return data_cleaned.to_json()
-    elif original_format == np.ndarray:
-        return data_cleaned.to_numpy()
+    # Handle list input
+    elif isinstance(df, list):
+        if method == 'min-max':
+            X_min = min(df)
+            X_max = max(df)
+            return [(x - X_min) / (X_max - X_min) for x in df]
+
+        elif method == 'robust':
+            median = np.median(df)
+            IQR = np.percentile(df, 75) - np.percentile(df, 25)
+            return [(x - median) / IQR for x in df]
+
+        elif method == 'standard':
+            mean = np.mean(df)
+            std = np.std(df)
+            return [(x - mean) / std for x in df]
+
+        else:
+            raise ValueError(f"Scaling method '{method}' is not recognized. Choose from 'min-max', 'robust', or 'standard'.")
+
+    # Handle tuple input
+    elif isinstance(df, tuple):
+        df_list = list(df)
+        
+        if method == 'min-max':
+            X_min = min(df_list)
+            X_max = max(df_list)
+            return tuple((x - X_min) / (X_max - X_min) for x in df_list)
+
+        elif method == 'robust':
+            median = np.median(df_list)
+            IQR = np.percentile(df_list, 75) - np.percentile(df_list, 25)
+            return tuple((x - median) / IQR for x in df_list)
+
+        elif method == 'standard':
+            mean = np.mean(df_list)
+            std = np.std(df_list)
+            return tuple((x - mean) / std for x in df_list)
+
+        else:
+            raise ValueError(f"Scaling method '{method}' is not recognized. Choose from 'min-max', 'robust', or 'standard'.")
+
+    # Handle dictionary input
+    elif isinstance(df, dict):
+        scaled_dict = {}
+        for key, value in df.items():
+            if isinstance(value, list):  # Handle list values within dict
+                if method == 'min-max':
+                    X_min = min(value)
+                    X_max = max(value)
+                    scaled_dict[key] = [(x - X_min) / (X_max - X_min) for x in value]
+
+                elif method == 'robust':
+                    median = np.median(value)
+                    IQR = np.percentile(value, 75) - np.percentile(value, 25)
+                    scaled_dict[key] = [(x - median) / IQR for x in value]
+
+                elif method == 'standard':
+                    mean = np.mean(value)
+                    std = np.std(value)
+                    scaled_dict[key] = [(x - mean) / std for x in value]
+
+                else:
+                    raise ValueError(f"Scaling method '{method}' is not recognized. Choose from 'min-max', 'robust', or 'standard'.")
+            else:
+                scaled_dict[key] = value  # If not a list, leave the value unchanged
+        return scaled_dict
+
+    # Handle numpy array input
+    elif isinstance(df, np.ndarray):
+        if method == 'min-max':
+            X_min = df.min()
+            X_max = df.max()
+            return (df - X_min) / (X_max - X_min)
+
+        elif method == 'robust':
+            median = np.median(df)
+            IQR = np.percentile(df, 75) - np.percentile(df, 25)
+            return (df - median) / IQR
+
+        elif method == 'standard':
+            mean = np.mean(df)
+            std = np.std(df)
+            return (df - mean) / std
+
+        else:
+            raise ValueError(f"Scaling method '{method}' is not recognized. Choose from 'min-max', 'robust', or 'standard'.")
+
+    # Handle string input (we assume no scaling on strings, just return as is)
+    elif isinstance(df, str):
+        return df
+
     else:
-        return data_cleaned
+        raise TypeError(f"Unsupported data type: {original_format}. Please provide a DataFrame, Series, list, dict, tuple, numpy array, or JSON string.")
+
 
 
 
@@ -1788,7 +2302,6 @@ def convert_to_base_unit(value, from_unit, to_unit, category):
     target_factor = unit_conversion_factors[to_unit]
     return value * conversion_factor / target_factor
 
-
 @log_function_call
 @track_changes
 def convert_unit(
@@ -1811,29 +2324,30 @@ def convert_unit(
     Returns:
     - Union[pd.DataFrame, pd.Series, list, dict, tuple, str, np.ndarray]: The data with converted values.
     """
-    # Detect original data format
-    original_format = type(df)
+    # Handle the input type based on original format
 
-    # Convert to DataFrame for uniform processing if input is not already a DataFrame or Series
-    if isinstance(df, pd.DataFrame) or isinstance(df, pd.Series):
-        data_cleaned = df
-    elif isinstance(df, (list, tuple)):
-        data_cleaned = pd.DataFrame(df)
+    if isinstance(df, (list, tuple)):
+        # Process list/tuple directly
+        data_cleaned = list(df) if isinstance(df, list) else tuple(df)
     elif isinstance(df, dict):
-        data_cleaned = pd.DataFrame.from_dict(df)
+        data_cleaned = df.copy()
     elif isinstance(df, np.ndarray):
-        data_cleaned = pd.DataFrame(df)
+        data_cleaned = df.copy()
     elif isinstance(df, str):
+        # Parse JSON string
         try:
             parsed_data = json.loads(df)
             if isinstance(parsed_data, dict):
-                data_cleaned = pd.DataFrame.from_dict(parsed_data)
+                data_cleaned = parsed_data
             else:
                 raise ValueError("String input must represent a JSON object.")
         except json.JSONDecodeError:
             raise ValueError("String input must be valid JSON representing an object.")
+    elif isinstance(df, pd.DataFrame) or isinstance(df, pd.Series):
+        # Directly use the DataFrame or Series as it is
+        data_cleaned = df
     else:
-        raise TypeError(f"Unsupported data type: {original_format}. Please provide a DataFrame, Series, list, dict, tuple, numpy array, or JSON string.")
+        raise TypeError(f"Unsupported data type: {type(df)}. Please provide a DataFrame, Series, list, dict, tuple, numpy array, or JSON string.")
 
     # Ensure columns is a list, even if a single string is passed
     if isinstance(columns, str):
@@ -1841,8 +2355,8 @@ def convert_unit(
 
     # Validate inputs
     for column in columns:
-        if column not in data_cleaned.columns:
-            raise ValueError(f"Column '{column}' does not exist in the DataFrame.")
+        if isinstance(data_cleaned, dict) and column not in data_cleaned:
+            raise ValueError(f"Column '{column}' does not exist in the data structure.")
         if unit_category not in default_unit_conversion_factors:
             raise ValueError(f"Unit category '{unit_category}' is not defined.")
         if from_unit not in default_unit_conversion_factors.get(unit_category, {}):
@@ -1850,33 +2364,40 @@ def convert_unit(
         if to_unit not in default_unit_conversion_factors.get(unit_category, {}):
             raise ValueError(f"Invalid 'to_unit': {to_unit} for unit category '{unit_category}'.")
 
-    # Copy DataFrame to avoid modifying the original
-    converted_data = data_cleaned.copy()
-
-    for column in columns:
-        for idx, value in converted_data[column].items():
+    # Apply conversion to the columns
+    if isinstance(data_cleaned, (list, tuple)):
+        for idx, value in enumerate(data_cleaned):
             if isinstance(value, (int, float)):
                 try:
                     converted_value = convert_to_base_unit(value, from_unit, to_unit, unit_category)
-                    converted_data.at[idx, column] = converted_value
+                    data_cleaned[idx] = converted_value
                 except ValueError as e:
-                    print(f"Error converting value {value} in column '{column}': {e}")
+                    print(f"Error converting value {value}: {e}")
             else:
-                # Handle non-numeric values
-                print(f"Skipping non-numeric value in column '{column}': {value}")
+                print(f"Skipping non-numeric value: {value}")
+    elif isinstance(data_cleaned, dict):
+        for column in columns:
+            for idx, value in enumerate(data_cleaned[column]):
+                if isinstance(value, (int, float)):
+                    try:
+                        converted_value = convert_to_base_unit(value, from_unit, to_unit, unit_category)
+                        data_cleaned[column][idx] = converted_value
+                    except ValueError as e:
+                        print(f"Error converting value {value} in column '{column}': {e}")
+                else:
+                    print(f"Skipping non-numeric value in column '{column}': {value}")
+    elif isinstance(data_cleaned, (pd.Series, pd.DataFrame)):
+        for column in columns:
+            for idx, value in data_cleaned[column].items():
+                if isinstance(value, (int, float)):
+                    try:
+                        converted_value = convert_to_base_unit(value, from_unit, to_unit, unit_category)
+                        data_cleaned.at[idx, column] = converted_value
+                    except ValueError as e:
+                        print(f"Error converting value {value} in column '{column}': {e}")
+                else:
+                    print(f"Skipping non-numeric value in column '{column}': {value}")
 
     # Return in the original format (if input was not DataFrame/Series)
-    if original_format == pd.DataFrame:
-        return converted_data
-    elif original_format == pd.Series:
-        return converted_data.squeeze()
-    elif original_format == list:
-        return converted_data.values.tolist()
-    elif original_format == dict:
-        return converted_data.to_dict(orient='records')
-    elif original_format == tuple:
-        return tuple(converted_data.values.tolist())
-    elif original_format == str:
-        return json.dumps(converted_data.to_dict(orient='records'))
-    elif original_format == np.ndarray:
-        return converted_data.to_numpy()
+    return data_cleaned
+

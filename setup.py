@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="pyspan",
-    version="0.4.0",
+    version="0.4.2",
     py_modules=["pyspan"],
     description="A Python package for efficient data cleaning and preprocessing",
     long_description=open("README.md", encoding='utf-8').read(),
