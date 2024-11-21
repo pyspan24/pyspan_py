@@ -454,43 +454,37 @@ def refine(
     clean_rows: bool = True
 ) -> Union[pd.DataFrame, list, dict, tuple, str]:
     """
-    Refines the DataFrame by cleaning both column names and optionally row data.
+    Refines the data by cleaning column names and optionally row data.
 
     Parameters:
-    - df (Union[pd.DataFrame, list, dict, tuple, np.ndarray, str]): The DataFrame or data to refine.
-    - clean_rows (bool): Whether to clean the row data as well as the column names. Default is True.
+    - df (Union[pd.DataFrame, list, dict, tuple, np.ndarray, str]): The data to refine.
+    - clean_rows (bool): Whether to clean row data as well as column names. Default is True.
 
     Returns:
     - Union[pd.DataFrame, list, dict, tuple, str]: Refined data in the same format as input.
     """
     # Handle list type
     if isinstance(df, list):
-        cleaned_data = [clean_text(str(item)) if isinstance(item, str) else item for item in df]
-        if clean_rows:
-            cleaned_data = [clean_text(str(item)) if isinstance(item, str) else item for item in cleaned_data]
-        return cleaned_data
+        return [clean_text(str(item)) if isinstance(item, str) else item for item in df]
 
     # Handle tuple type
     elif isinstance(df, tuple):
-        cleaned_data = tuple(clean_text(str(item)) if isinstance(item, str) else item for item in df)
-        if clean_rows:
-            cleaned_data = tuple(clean_text(str(item)) if isinstance(item, str) else item for item in cleaned_data)
-        return cleaned_data
+        return tuple(clean_text(str(item)) if isinstance(item, str) else item for item in df)
 
     # Handle numpy array type
     elif isinstance(df, np.ndarray):
-        cleaned_data = np.vectorize(lambda x: clean_text(str(x)) if isinstance(x, str) else x)(df)
-        if clean_rows:
-            cleaned_data = np.vectorize(lambda x: clean_text(str(x)) if isinstance(x, str) else x)(cleaned_data)
-        return cleaned_data
+        return np.vectorize(lambda x: clean_text(str(x)) if isinstance(x, str) else x)(df)
 
     # Handle dictionary type
     elif isinstance(df, dict):
-        cleaned_data = {key: [clean_text(str(item)) if isinstance(item, str) else item for item in value]
-                        for key, value in df.items()}
-        if clean_rows:
-            cleaned_data = {key: [clean_text(str(item)) if isinstance(item, str) else item for item in value]
-                            for key, value in cleaned_data.items()}
+        cleaned_data = {}
+        for key, value in df.items():
+            cleaned_key = clean_column_name(key)  # Clean the column name (key)
+            if isinstance(value, list):
+                cleaned_value = [clean_text(str(item)) if isinstance(item, str) else item for item in value]
+            else:
+                cleaned_value = clean_text(str(value)) if isinstance(value, str) else value
+            cleaned_data[cleaned_key] = cleaned_value
         return cleaned_data
 
     # Handle JSON string type
@@ -498,9 +492,8 @@ def refine(
         try:
             parsed_data = json.loads(df)
             if isinstance(parsed_data, dict):
-                cleaned_data = {key: [clean_text(str(item)) if isinstance(item, str) else item for item in value]
-                                for key, value in parsed_data.items()}
-            return json.dumps(cleaned_data)
+                cleaned_data = refine(parsed_data)  # Reuse dictionary logic
+                return json.dumps(cleaned_data)
         except json.JSONDecodeError:
             raise ValueError("String inputs must be valid JSON objects.")
 
