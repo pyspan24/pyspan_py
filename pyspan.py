@@ -1478,21 +1478,28 @@ def detect_outliers(
         columns = [columns]
 
     # Handle missing values, depending on the type
+    if data_type == 'DataFrame':
+        df_shape_before = df.shape
+    elif data_type == 'Series':
+        df_shape_before = df.shape
+    elif data_type in ['list/tuple', 'ndarray']:
+        df_shape_before = len(df)
+    elif data_type == 'dict':
+        df_shape_before = len(df)
+    elif data_type == 'str':
+        df_shape_before = len(df)
+
+    # Handle missing values, depending on the type
     if handle_missing:
         if data_type == 'DataFrame':
-            df_shape_before = df.shape
             df = df.dropna(subset=columns)
         elif data_type == 'Series':
-            df_shape_before = df.shape
             df = df.dropna()
         elif data_type in ['list/tuple', 'ndarray']:
-            df_shape_before = len(df)
             df = [item for item in df if item is not None]
         elif data_type == 'dict':
-            df_shape_before = len(df)
             df = {key: value for key, value in df.items() if value is not None}
         elif data_type == 'str':
-            df_shape_before = len(df)
             df = df.strip()  # Strip any surrounding whitespace from string
 
     # Initialize mask for outliers
