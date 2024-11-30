@@ -168,15 +168,12 @@ def handle_nulls(
             raise ValueError("Action must be either 'remove', 'replace', or 'impute'.")
 
     # Process List or Tuple
+#changes by Uzair
     elif isinstance(df, (list, tuple)):
-        df_cleaned = [val if val is not None else with_val for val in df]
-        if threshold is not None:
-            valid_count = len([val for val in df_cleaned if val is not None])
-            if valid_count / len(df_cleaned) < (1 - threshold / 100):
-                df_cleaned = [] if isinstance(df, list) else ()
-
+        df_cleaned = [val for val in df if val is not None and not (isinstance(val, float) and np.isnan(val))]
         if isinstance(df, tuple):
             df_cleaned = tuple(df_cleaned)
+
 
     # Process Dictionary
     elif isinstance(df, dict):
@@ -229,7 +226,6 @@ def handle_nulls(
         elif isinstance(df, tuple):
             raise ValueError("Inplace modification is not supported for tuples.")
     return df_cleaned
-
     
 
 
@@ -723,90 +719,145 @@ def format_dt(
 
         return df
 
-    # Handle list
+   # Handle list
+#changes by Uzair for List start
     elif isinstance(df, list):
-        if not all(isinstance(item, dict) for item in df):
-            raise ValueError("Each item in the list should be a dictionary if it's not a DataFrame.")
+      if not all(isinstance(item, dict) for item in df):
+        raise ValueError("Each item in the list should be a dictionary if it's not a DataFrame.")
 
-        for column in columns if isinstance(columns, list) else [columns]:
-            for item in df:
-                if column not in item:
-                    raise ValueError(f"Column '{column}' does not exist in the list of dictionaries.")
+      for column in columns if isinstance(columns, list) else [columns]:
+          for item in df:
+              if column not in item:
+                  raise ValueError(f"Column '{column}' does not exist in the list of dictionaries.")
 
-                item[column] = pd.to_datetime(item[column])
+            # Convert to datetime (handles iterable or single datetime string)
+              values = pd.to_datetime(item[column])
 
-                # Adding requested datetime features
-                if day:
-                    item[f'{column}_day'] = item[column].dt.day
-                if month:
-                    item[f'{column}_month'] = item[column].dt.month
-                if year:
-                    item[f'{column}_year'] = item[column].dt.year
-                if quarter:
-                    item[f'{column}_quarter'] = item[column].dt.quarter
-                if hour:
-                    item[f'{column}_hour'] = item[column].dt.hour
-                if minute:
-                    item[f'{column}_minute'] = item[column].dt.minute
-                if day_of_week:
-                    item[f'{column}_day_of_week'] = item[column].dt.day_name()
+              if isinstance(values, pd.DatetimeIndex):  # If values are iterable
+                  if day:
+                      item[f'{column}_day'] = values.day.tolist()
+                  if month:
+                      item[f'{column}_month'] = values.month.tolist()
+                  if year:
+                      item[f'{column}_year'] = values.year.tolist()
+                  if quarter:
+                      item[f'{column}_quarter'] = values.quarter.tolist()
+                  if hour:
+                      item[f'{column}_hour'] = values.hour.tolist()
+                  if minute:
+                      item[f'{column}_minute'] = values.minute.tolist()
+                  if day_of_week:
+                      item[f'{column}_day_of_week'] = [val.strftime('%A') for val in values]
+              else:  # If it's a single datetime value
+                  if day:
+                      item[f'{column}_day'] = values.day
+                  if month:
+                      item[f'{column}_month'] = values.month
+                  if year:
+                      item[f'{column}_year'] = values.year
+                  if quarter:
+                      item[f'{column}_quarter'] = (values.month - 1) // 3 + 1
+                  if hour:
+                      item[f'{column}_hour'] = values.hour
+                  if minute:
+                      item[f'{column}_minute'] = values.minute
+                  if day_of_week:
+                      item[f'{column}_day_of_week'] = values.strftime('%A')
 
-        return df
+      return df
+#changes for list part end
 
-    # Handle dict
+#changes by Uzair Start for dictionary part
+
     elif isinstance(df, dict):
-        for column in columns if isinstance(columns, list) else [columns]:
-            if column not in df:
-                raise ValueError(f"Column '{column}' does not exist in the dictionary.")
+      for column in columns if isinstance(columns, list) else [columns]:
+        if column not in df:
+          raise ValueError(f"Column '{column}' does not exist in the dictionary.")
 
-            df[column] = pd.to_datetime(df[column])
+        # Convert to datetime (assumes values are iterable, like a list, or single datetime string)
+        values = pd.to_datetime(df[column])
 
-            # Adding requested datetime features
+        if isinstance(values, pd.DatetimeIndex):  # If values are iterable
             if day:
-                df[f'{column}_day'] = df[column].dt.day
+                df[f'{column}_day'] = values.day.tolist()
             if month:
-                df[f'{column}_month'] = df[column].dt.month
+                df[f'{column}_month'] = values.month.tolist()
             if year:
-                df[f'{column}_year'] = df[column].dt.year
+                df[f'{column}_year'] = values.year.tolist()
             if quarter:
-                df[f'{column}_quarter'] = df[column].dt.quarter
+                df[f'{column}_quarter'] = values.quarter.tolist()
             if hour:
-                df[f'{column}_hour'] = df[column].dt.hour
+                df[f'{column}_hour'] = values.hour.tolist()
             if minute:
-                df[f'{column}_minute'] = df[column].dt.minute
+                df[f'{column}_minute'] = values.minute.tolist()
             if day_of_week:
-                df[f'{column}_day_of_week'] = df[column].dt.day_name()
+                df[f'{column}_day_of_week'] = [val.strftime('%A') for val in values]
+        else:  # If it's a single datetime value
+            if day:
+                df[f'{column}_day'] = values.day
+            if month:
+                df[f'{column}_month'] = values.month
+            if year:
+                df[f'{column}_year'] = values.year
+            if quarter:
+                df[f'{column}_quarter'] = (values.month - 1) // 3 + 1
+            if hour:
+                df[f'{column}_hour'] = values.hour
+            if minute:
+                df[f'{column}_minute'] = values.minute
+            if day_of_week:
+                df[f'{column}_day_of_week'] = values.strftime('%A')
 
-        return df
+      return df
+#changes by Uzair end for dictionary part
 
-    # Handle tuple
+
+#changes by Uzair start for tuple part
     elif isinstance(df, tuple):
-        df_as_list = list(df)
+      df_as_list = list(df)  # Convert tuple to list for easier manipulation
 
-        for column in columns if isinstance(columns, list) else [columns]:
-            for item in df_as_list:
-                if isinstance(item, dict) and column in item:
-                    item[column] = pd.to_datetime(item[column])
-                else:
-                    raise ValueError(f"Column '{column}' does not exist in the tuple.")
+      for column in columns if isinstance(columns, list) else [columns]:
+          for item in df_as_list:
+              if isinstance(item, dict) and column in item:
+                # Convert the column to datetime
+                  values = pd.to_datetime(item[column])
 
-                # Adding requested datetime features
-                if day:
-                    item[f'{column}_day'] = item[column].dt.day
-                if month:
-                    item[f'{column}_month'] = item[column].dt.month
-                if year:
-                    item[f'{column}_year'] = item[column].dt.year
-                if quarter:
-                    item[f'{column}_quarter'] = item[column].dt.quarter
-                if hour:
-                    item[f'{column}_hour'] = item[column].dt.hour
-                if minute:
-                    item[f'{column}_minute'] = item[column].dt.minute
-                if day_of_week:
-                    item[f'{column}_day_of_week'] = item[column].dt.day_name()
+                  if isinstance(values, pd.DatetimeIndex):  # If values are iterable
+                      if day:
+                          item[f'{column}_day'] = values.day.tolist()
+                      if month:
+                          item[f'{column}_month'] = values.month.tolist()
+                      if year:
+                          item[f'{column}_year'] = values.year.tolist()
+                      if quarter:
+                          item[f'{column}_quarter'] = values.quarter.tolist()
+                      if hour:
+                          item[f'{column}_hour'] = values.hour.tolist()
+                      if minute:
+                          item[f'{column}_minute'] = values.minute.tolist()
+                      if day_of_week:
+                          item[f'{column}_day_of_week'] = [val.strftime('%A') for val in values]
+                  else:  # If it's a single datetime value
+                      if day:
+                          item[f'{column}_day'] = values.day
+                      if month:
+                          item[f'{column}_month'] = values.month
+                      if year:
+                          item[f'{column}_year'] = values.year
+                      if quarter:
+                          item[f'{column}_quarter'] = (values.month - 1) // 3 + 1
+                      if hour:
+                          item[f'{column}_hour'] = values.hour
+                      if minute:
+                          item[f'{column}_minute'] = values.minute
+                      if day_of_week:
+                          item[f'{column}_day_of_week'] = values.strftime('%A')
+              else:
+                  raise ValueError(f"Column '{column}' does not exist in one of the dictionaries in the tuple.")
 
-        return tuple(df_as_list)
+      return tuple(df_as_list)  # Convert back to tuple
+
+#changes by Uzair end for tuple part
 
     # Handle np.ndarray
     elif isinstance(df, np.ndarray):
@@ -825,6 +876,7 @@ def format_dt(
 
     else:
         raise TypeError("Unsupported data type. Please provide a DataFrame, list, tuple, dict, or JSON string.")
+
 
 
     
@@ -1029,9 +1081,11 @@ def spell_check_dataframe(df, dictionary='en_US', columns=None):
         text_data = df[column].dropna()
         misspelled = []
         for text in text_data:
-            words = re.findall(r'\b\w+\b', text)  # Tokenize words
-            words = [word.lower() for word in words if not word.isdigit()]  # Exclude numeric values
-            misspelled.extend([word for word in words if word not in spell_checker])
+            if isinstance(text, str):  # Ensure the value is a string
+
+                words = re.findall(r'\b\w+\b', text)  # Tokenize words
+                words = [word.lower() for word in words if not word.isdigit()]  # Exclude numeric values
+                misspelled.extend([word for word in words if word not in spell_checker])
 
         misspelled_words[column] = list(set(misspelled))  # Remove duplicates
 
@@ -1266,11 +1320,10 @@ def convert_type(
 
         return suggestions
 
-    # Handling different input types separately
+    # Conversion logic for DataFrame
     if isinstance(df, pd.DataFrame):
         recommendations = {}
 
-        # If columns are provided, ensure they exist in the DataFrame
         if columns:
             for column in columns:
                 if column not in df.columns:
@@ -1279,28 +1332,25 @@ def convert_type(
         else:
             data_to_analyze = df
 
-        # Analyze each column
         for col_name, col_data in data_to_analyze.items():
-            current_dtype = col_data.dtype
             suggestions = suggest_conversion(col_data)
-
             if suggestions:
                 recommendations[col_name] = {
-                    'current_dtype': current_dtype,
+                    'current_dtype': col_data.dtype,
                     'suggestions': suggestions
                 }
 
-        # Display recommendations and apply user-selected conversions
+        if not recommendations:
+            print("All types are fine. No conversion required.")
+            return df
+
         for col_name, rec in recommendations.items():
             print(f"\nColumn: {col_name}")
             print(f"Current Data Type: {rec['current_dtype']}")
             print(f"Recommended Conversions: {', '.join(rec['suggestions'])}")
-
-            # Apply suggested conversions based on user confirmation
             for suggestion in rec['suggestions']:
-                # Auto-confirmation for this example; replace with interactive input in production if needed.
-                user_input = "yes"  # Simulate user input for testing
-                if user_input.lower() == 'yes':
+                user_input = input(f"Apply {suggestion} to column '{col_name}'? (yes/no): ").strip().lower()
+                if user_input == 'yes':
                     if suggestion == 'Convert to integer':
                         df[col_name] = pd.to_numeric(df[col_name], errors='coerce').fillna(0).astype(int)
                     elif suggestion == 'Convert to numeric':
@@ -1310,102 +1360,70 @@ def convert_type(
                     elif suggestion == 'Convert to datetime':
                         df[col_name] = pd.to_datetime(df[col_name], errors='coerce')
                     print(f"Column '{col_name}' converted to {df[col_name].dtype}.")
-                else:
-                    print(f"Column '{col_name}' not converted.")
-
         return df
 
+    # Conversion logic for Series
     elif isinstance(df, pd.Series):
-        recommendations = []
-        current_dtype = df.dtype
         suggestions = suggest_conversion(df)
 
-        if suggestions:
-            recommendations = {
-                'current_dtype': current_dtype,
-                'suggestions': suggestions
-            }
+        if not suggestions:
+            print("All types are fine. No conversion required.")
+            return df
 
-        # Display recommendations and apply user-selected conversions
-        for rec in recommendations.get('suggestions', []):
-            user_input = "yes"  # Simulate user input for testing
-            if user_input.lower() == 'yes':
-                if rec == 'Convert to integer':
+        for suggestion in suggestions:
+            user_input = input(f"Apply {suggestion} to Series? (yes/no): ").strip().lower()
+            if user_input == 'yes':
+                if suggestion == 'Convert to integer':
                     df = pd.to_numeric(df, errors='coerce').fillna(0).astype(int)
-                elif rec == 'Convert to numeric':
+                elif suggestion == 'Convert to numeric':
                     df = pd.to_numeric(df, errors='coerce')
-                elif rec == 'Convert to category':
+                elif suggestion == 'Convert to category':
                     df = df.astype('category')
-                elif rec == 'Convert to datetime':
+                elif suggestion == 'Convert to datetime':
                     df = pd.to_datetime(df, errors='coerce')
                 print(f"Series converted to {df.dtype}.")
-            else:
-                print(f"Series not converted.")
-
         return df
 
-    elif isinstance(df, list):
-        recommendations = suggest_conversion(pd.Series(df))
+    # Conversion logic for lists, tuples, and arrays
+    elif isinstance(df, (list, tuple, np.ndarray)):
+        data = pd.Series(df)
+        suggestions = suggest_conversion(data)
 
-        # Display recommendations and apply user-selected conversions
-        for rec in recommendations:
-            user_input = "yes"  # Simulate user input for testing
-            if user_input.lower() == 'yes':
-                df = pd.to_numeric(df, errors='coerce').fillna(0).astype(int)
-                print("List converted to integer.")
-            else:
-                print("List not converted.")
+        if not suggestions:
+            print("All types are fine. No conversion required.")
+            return df
 
+        for suggestion in suggestions:
+            user_input = input(f"Apply {suggestion} to data? (yes/no): ").strip().lower()
+            if user_input == 'yes':
+                if suggestion == 'Convert to integer':
+                    converted = pd.to_numeric(data, errors='coerce').fillna(0).astype(int)
+                elif suggestion == 'Convert to numeric':
+                    converted = pd.to_numeric(data, errors='coerce')
+                elif suggestion == 'Convert to category':
+                    converted = data.astype('category')
+                elif suggestion == 'Convert to datetime':
+                    converted = pd.to_datetime(data, errors='coerce')
+                converted = converted.tolist() if isinstance(df, list) else tuple(converted) if isinstance(df, tuple) else np.array(converted)
+                print(f"Data converted to {type(converted)}.")
+                return converted
         return df
 
-    elif isinstance(df, tuple):
-        recommendations = suggest_conversion(pd.Series(df))
+    # Conversion logic for dictionary
+    elif isinstance(df, dict):
+        try:
+            data = pd.DataFrame.from_dict(df, orient='index').T
+            return convert_type(data, columns)
+        except Exception as e:
+            raise ValueError("Unable to process dictionary. Ensure it represents tabular data.") from e
 
-        # Display recommendations and apply user-selected conversions
-        for rec in recommendations:
-            user_input = "yes"  # Simulate user input for testing
-            if user_input.lower() == 'yes':
-                df = tuple(pd.to_numeric(df, errors='coerce').fillna(0).astype(int))
-                print("Tuple converted to integer.")
-            else:
-                print("Tuple not converted.")
-
-        return df
-
-    elif isinstance(df, np.ndarray):
-        recommendations = suggest_conversion(pd.Series(df))
-
-        # Display recommendations and apply user-selected conversions
-        for rec in recommendations:
-            user_input = "yes"  # Simulate user input for testing
-            if user_input.lower() == 'yes':
-                df = pd.to_numeric(df, errors='coerce').fillna(0).astype(int)
-                print("Array converted to integer.")
-            else:
-                print("Array not converted.")
-
-        return df
-
+    # Conversion logic for JSON string
     elif isinstance(df, str):
         try:
-            parsed_data = json.loads(df)
-            if isinstance(parsed_data, dict):
-                recommendations = suggest_conversion(pd.DataFrame.from_dict(parsed_data))
-
-                # Display recommendations and apply user-selected conversions
-                for rec in recommendations:
-                    user_input = "yes"  # Simulate user input for testing
-                    if user_input.lower() == 'yes':
-                        parsed_data = json.dumps(parsed_data)
-                        print("String converted to JSON.")
-                    else:
-                        print("String not converted.")
-            else:
-                raise ValueError("String input must be valid JSON representing an object.")
+            parsed = json.loads(df)
+            return convert_type(parsed)
         except json.JSONDecodeError:
             raise ValueError("String input must be valid JSON representing an object.")
-
-        return parsed_data
 
     else:
         raise TypeError("Unsupported data type. Please provide a DataFrame, Series, list, dict, tuple, or JSON string.")
@@ -1457,6 +1475,12 @@ def detect_outliers(
     Returns:
     - The processed data with outliers removed, in the original data format.
     """
+
+    #changes by Uzair
+    # Convert dictionary to DataFrame if input is a dictionary
+    if isinstance(df, dict):
+        df = pd.DataFrame(df)
+
     # Detect if input is DataFrame, Series, List, Tuple, Dict, or String
     if isinstance(df, pd.DataFrame):
         data_type = 'DataFrame'
@@ -1464,8 +1488,6 @@ def detect_outliers(
         data_type = 'Series'
     elif isinstance(df, (list, tuple)):
         data_type = 'list/tuple'
-    elif isinstance(df, dict):
-        data_type = 'dict'
     elif isinstance(df, str):
         data_type = 'str'
     elif isinstance(df, np.ndarray):
@@ -1478,18 +1500,6 @@ def detect_outliers(
         columns = [columns]
 
     # Handle missing values, depending on the type
-    if data_type == 'DataFrame':
-        df_shape_before = df.shape
-    elif data_type == 'Series':
-        df_shape_before = df.shape
-    elif data_type in ['list/tuple', 'ndarray']:
-        df_shape_before = len(df)
-    elif data_type == 'dict':
-        df_shape_before = len(df)
-    elif data_type == 'str':
-        df_shape_before = len(df)
-
-    # Handle missing values, depending on the type
     if handle_missing:
         if data_type == 'DataFrame':
             df = df.dropna(subset=columns)
@@ -1497,8 +1507,6 @@ def detect_outliers(
             df = df.dropna()
         elif data_type in ['list/tuple', 'ndarray']:
             df = [item for item in df if item is not None]
-        elif data_type == 'dict':
-            df = {key: value for key, value in df.items() if value is not None}
         elif data_type == 'str':
             df = df.strip()  # Strip any surrounding whitespace from string
 
@@ -1509,8 +1517,8 @@ def detect_outliers(
         if data_type == 'DataFrame' or data_type == 'Series':
             if column not in df.columns:
                 raise ValueError(f"Column '{column}' not found in the DataFrame.")
-        elif data_type in ['list/tuple', 'ndarray', 'dict']:
-            # Handle different data structures that don't have columns (i.e., for list/tuple/dict)
+        elif data_type in ['list/tuple', 'ndarray']:
+            # Handle different data structures that don't have columns (i.e., for list/tuple/ndarray)
             if isinstance(column, int):  # Handle case if column is an index for list/tuple/ndarray
                 if data_type == 'list/tuple' and column >= len(df):
                     raise ValueError(f"Index '{column}' is out of bounds for the data.")
@@ -1593,20 +1601,20 @@ def detect_outliers(
 
     # Print original and final data shape or size
     if data_type == 'DataFrame':
-        print(f"Original data shape: {df_shape_before}")
+        print(f"Original data shape: {df.shape}")
         print(f"Data shape after removing {outlier_type}: {df_cleaned.shape}")
     elif data_type == 'Series':
-        print(f"Original data size: {df_shape_before}")
+        print(f"Original data size: {df.size}")
         print(f"Data size after removing {outlier_type}: {df_cleaned.size}")
     elif data_type in ['list/tuple', 'ndarray']:
-        print(f"Original data size: {df_shape_before}")
+        print(f"Original data size: {len(df)}")
         print(f"Data size after removing {outlier_type}: {len(df_cleaned)}")
     elif data_type == 'dict':
-        print(f"Original data size: {df_shape_before}")
+        print(f"Original data size: {len(df)}")
         print(f"Data size after removing {outlier_type}: {len(df_cleaned)}")
     elif data_type == 'str':
-        print(f"Original data size: {df_shape_before}")
-        print(f"Data size after removal (string type unchanged): {len(df_cleaned)}")
+        print(f"Original data size: {len(df)}")
+        print(f"Data size after removing {outlier_type}: {len(df_cleaned)}")
 
     return df_cleaned
 
