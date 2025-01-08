@@ -1,6 +1,6 @@
 include LICENSE
 include README.md
-include pyspan_py/config.yaml
 recursive-include docs *
-include pyspan_py/data/*.csv
+recursive-include pyspan/data *.csv
+recursive-include pyspan *.py
 
