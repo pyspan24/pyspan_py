@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="pyspan",
-    version="0.4.6",
+    version="0.5.1",
     packages=find_packages(),
     description="A Python package for efficient data cleaning and preprocessing",
     long_description=open("README.md", encoding='utf-8').read(),
@@ -15,7 +15,7 @@ setup(
        "numpy<2.0.0",
        "pandas<=2.2.2",
        "pyspellchecker==0.8.1",
-       "scikit-learn<=1.6.0",
+       "scikit-learn<=1.6.1",
        "openai>=1.12.0"
     ],
     include_package_data=True,

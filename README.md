@@ -485,6 +485,53 @@ The target unit for the conversion (e.g., 'm', 'g').
 
 ---
 
+## 17. `resize_dataset`
+
+**Description**
+The resize_dataset function allows you to intelligently resize a dataset by either expanding it with synthetic data or reducing it through smart sampling techniques. This function is particularly useful when you need to balance class distributions, create larger datasets for training, or reduce dataset size while preserving important characteristics.
+
+**Parameters:**
+
+- **`df`** (`pd.DataFrame`):  
+  The input DataFrame to resize. Note: Unlike other functions in pyspan, resize_dataset only accepts pandas DataFrames.
+
+- **`target_size`** (`int`):  
+  Desired size of the output DataFrame.
+
+- **`method`** (`str`, default: `'auto'`):  
+  Method to use for resizing:
+  - `'auto'`: Automatically choose based on target_size
+  - `'expand'`: Generate synthetic data to increase dataset size
+  - `'reduce'`: Remove data to decrease dataset size
+
+- **`balance_classes`** (`bool`, default: `False`):  
+  If True, try to balance classes in the target_column (for classification tasks).
+
+- **`target_column`** (`Optional[str]`, default: `None`):  
+  Column name containing the target variable (for classification tasks).
+
+- **`preserve_correlation`** (`bool`, default: `True`):  
+  If True, try to preserve correlations when generating synthetic data.
+
+- **`remove_outliers`** (`bool`, default: `False`):  
+  If True, remove outliers when reducing dataset.
+
+- **`outlier_threshold`** (`float`, default: `2.0`):  
+  Z-score threshold for outlier removal.
+
+- **`synthetic_method`** (`str`, default: `'statistical'`):  
+  Method for generating synthetic data:
+  - `'statistical'`: Use statistical properties of original data
+  - `'neighbor'`: Use nearest neighbor interpolation
+
+- **`random_state`** (`int`, default: `42`):  
+  Random seed for reproducibility.
+
+**Returns:**  
+- `pd.DataFrame`: Resized DataFrame with either expanded or reduced data.
+
+---
+
 ## Example Usage
 
 Here are some examples to illustrate the usage of the functions provided in `pyspan`:
@@ -494,10 +541,10 @@ import pandas as pd
 from pyspan import handle_nulls, remove, refine, manual_rename_columns
 from pyspan import format_dt, split_column, detect_errors, convert_type, detect_outliers
 from pyspan import display_logs, remove_chars, reformat, scale_data, undo
-from pyspan import sample_data, convert_unit
+from pyspan import sample_data, convert_unit, resize_dataset
 
 # Load a dataset
-df = pd.read_csv('/content/GlobalSharkAttacks.csv')
+df = pd.read_csv('/content/Your_Dataset.csv')
 
 # Example usage of handle_nulls
 # 1. Remove rows with null values in the column
@@ -596,6 +643,22 @@ converted_df = convert_unit(df, column='Distance', unit_category='length', from_
 
 # Convert 'Temperature' column from Fahrenheit to Kelvin
 converted_df_temp = convert_unit(df, column='Temperature', unit_category='temperature', from_unit='F', to_unit='K')
+
+# Example usage of resize_dataset
+# Expand a small dataset to 1000 rows using statistical methods
+expanded_df = resize_dataset(df, target_size=1000, method='expand')
+
+# Reduce a large dataset to 500 rows while preserving diversity
+reduced_df = resize_dataset(df, target_size=500, method='reduce')
+
+# Balance classes in a classification dataset
+balanced_df = resize_dataset(df, target_size=800, balance_classes=True, target_column='target')
+
+# Generate synthetic data while preserving correlations between variables
+synthetic_df = resize_dataset(df, target_size=1200, method='expand', preserve_correlation=True)
+
+# Reduce dataset size while removing outliers
+clean_df = resize_dataset(df, target_size=600, method='reduce', remove_outliers=True, outlier_threshold=2.5)
 ```
 ---
 
