@@ -532,6 +532,61 @@ The resize_dataset function allows you to intelligently resize a dataset by eith
 
 ---
 
+## 18. `reduce_vif`
+
+**Description**  
+The `reduce_vif` function removes multicollinearity from a dataset using Variance Inflation Factor (VIF). It iteratively identifies and removes features with high VIF values until all remaining features have VIF values below the specified threshold. This is particularly useful for feature selection and improving model stability in regression analysis.
+
+**Parameters:**
+
+- **`data`** (`pd.DataFrame`, `List`, `dict`, `tuple`, `np.ndarray`, `str`):  
+  The input data in any supported format. The data should contain numeric features for VIF calculation.
+
+- **`threshold`** (`float`, default: `5.0`):  
+  The VIF threshold above which features will be considered for removal. A common rule of thumb is:
+  - VIF = 1: Variables are uncorrelated
+  - VIF < 5: Moderate correlation
+  - VIF > 5: High correlation (should consider removal)
+
+- **`handle_na`** (`str`, default: `'drop'`):  
+  How to handle NaN or infinite values. Options include:
+  - `'drop'`: Drops rows containing NaN or infinite values
+  - `'fill'`: Fills NaN or infinite values with 0
+
+- **`return_format`** (`str`, default: `'dataframe'`):  
+  The format of the output data. Options include:
+  - `'dataframe'`: Returns a pandas DataFrame
+  - `'dict'`: Returns a dictionary with column names as keys
+  - `'list'`: Returns a list of lists
+  - `'json'`: Returns a JSON string
+
+**Returns:**  
+- `Union[pd.DataFrame, dict, list, str]`: The cleaned dataset with reduced multicollinearity in the specified format.
+
+## 19. `compress`
+
+**Description**  
+The `compress` function optimizes memory usage of a DataFrame by automatically downcasting numeric columns to the smallest possible data type and converting object columns to categorical when appropriate. This function is particularly useful when working with large datasets that consume excessive memory.
+
+**Parameters:**
+
+- **`df`** (`pd.DataFrame`):  
+  The DataFrame to compress. The function will analyze each column and:
+  - For integers: Downcast to the smallest possible integer type (uint8, int8, etc.)
+  - For floats: Downcast to float32 or smaller if possible
+  - For object/string columns: Convert to categorical if beneficial
+
+**Returns:**  
+- `pd.DataFrame`: The compressed DataFrame with optimized memory usage. The function also prints:
+  - Initial memory usage
+  - Final memory usage
+  - Percentage of memory saved
+
+**Note:**
+The compression is lossless for integers (preserves exact values) but may introduce small precision changes for floating-point numbers. The function automatically determines the best data type for each column based on its content and range of values.
+
+---
+
 ## Example Usage
 
 Here are some examples to illustrate the usage of the functions provided in `pyspan`:
@@ -541,7 +596,7 @@ import pandas as pd
 from pyspan import handle_nulls, remove, refine, manual_rename_columns
 from pyspan import format_dt, split_column, detect_errors, convert_type, detect_outliers
 from pyspan import display_logs, remove_chars, reformat, scale_data, undo
-from pyspan import sample_data, convert_unit, resize_dataset
+from pyspan import sample_data, convert_unit, resize_dataset, reduce_vif, compress
 
 # Load a dataset
 df = pd.read_csv('/content/Your_Dataset.csv')
@@ -659,6 +714,12 @@ synthetic_df = resize_dataset(df, target_size=1200, method='expand', preserve_co
 
 # Reduce dataset size while removing outliers
 clean_df = resize_dataset(df, target_size=600, method='reduce', remove_outliers=True, outlier_threshold=2.5)
+
+# Example usage of reduce_vif
+reduce_vif = reduce_vif(data=data_dict, threshold=3.0, handle_na='fill', return_format='json')
+
+# Example usage of compress
+compressed_df = compress(df)
 ```
 ---
 

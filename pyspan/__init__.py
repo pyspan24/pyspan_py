@@ -15,6 +15,8 @@ from .convert_unit import convert_unit
 from .remove_chars import remove_chars
 from .sample_data import sample_data
 from .resize_dataset import resize_dataset
+from .reduce_vif import reduce_vif
+from .compress import compress
 
 __all__ = [
     'log_function_call',
@@ -36,6 +38,7 @@ __all__ = [
     'convert_unit',
     'remove_chars',
     'sample_data',
-    'meta',
-    'resize_dataset'
+    'resize_dataset',
+    'reduce_vif',
+    'compress'
 ] 
