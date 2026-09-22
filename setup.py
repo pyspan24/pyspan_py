@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="pyspan",
-    version="1.0.0",
+    version="1.0.1",
     packages=find_packages(),
     description="A Python package for efficient data cleaning and preprocessing",
     long_description=open("README.md", encoding='utf-8').read(),
@@ -13,7 +13,7 @@ setup(
     url="https://github.com/pyspan24/pyspan_py.git",
     install_requires=[
        "numpy>=1.23.2,<3.0.0",
-       "pandas<=2.2.2",
+       "pandas<=2.2.3",
        "pyspellchecker==0.8.1",
        "scikit-learn<=1.6.1",
        "statsmodels>=0.14.4"
